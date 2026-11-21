@@ -45,6 +45,9 @@ export interface MapData {
 }
 
 export async function loadMap(url = `${import.meta.env.BASE_URL}data/map.json`): Promise<MapData> {
+  // The single-file build (npm run build:html) embeds the map, so it works when opened from disk.
+  const embedded = (globalThis as { __ORCHARD_MAP__?: MapData }).__ORCHARD_MAP__;
+  if (embedded) return embedded;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Could not load map (${res.status})`);
   return (await res.json()) as MapData;

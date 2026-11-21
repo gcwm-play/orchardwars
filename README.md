@@ -26,6 +26,7 @@ and the game saves itself in the browser.
 | `npm run dev` | Dev server with hot reload |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm test` | Unit tests (Vitest) |
+| `npm run build:html` | One self-contained `dist/orchard-wars.html` you can open from disk or send to someone |
 | `npm run sim` | Balance check: 400 computer-vs-computer games |
 | `npm run shot` | Screenshots of the built game in `shots/` (needs Playwright + Chromium) |
 | `npm run map:fetch` | Download Singapore's OSM data and cut out the playable area |
