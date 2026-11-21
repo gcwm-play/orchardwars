@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vite/
+*.log
+.DS_Store
+# raw OpenStreetMap download (regenerate with npm run map:fetch)
+tools/cache/
+# screenshots from npm run shot
+shots/
