@@ -7,9 +7,11 @@ export class IsoCamera {
   readonly camera: THREE.OrthographicCamera;
   readonly target = new THREE.Vector3();
   /** Half the visible height of the view in metres. */
-  viewHalfHeight = 38;
-  minHalf = 18;
-  maxHalf = 650;
+  viewHalfHeight = 1250;
+  minHalf = 60;
+  maxHalf = 1700;
+  /** Keep the view target inside this rectangle (world metres). */
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
   /** Looking down at this angle above the horizon (radians). */
   pitch = THREE.MathUtils.degToRad(55);
   private yaw = THREE.MathUtils.degToRad(45);
@@ -36,13 +38,43 @@ export class IsoCamera {
     this.yawGoal += (quarters * Math.PI) / 2;
   }
 
-  /** Current heading of the camera, used to make movement keys screen-relative. */
+  /** Current heading of the camera. */
   get heading() {
     return this.yaw;
   }
 
+  /** Pan by a screen-space amount in pixels (drag), given the canvas height in pixels. */
+  panPixels(dx: number, dy: number, canvasHeight: number) {
+    const perPixel = (2 * this.camera.top) / canvasHeight;
+    // Screen right and screen "up" projected onto the ground.
+    const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+    const ground = perPixel / Math.sin(this.pitch); // vertical screen distance stretches on the ground
+    // Screen right on the ground is (cos, -sin); screen up is (-sin, -cos).
+    this.target.x -= cos * dx * perPixel + sin * dy * ground;
+    this.target.z -= -sin * dx * perPixel + cos * dy * ground;
+    this.goal = null;
+    this.clampTarget();
+  }
+
+  /** Glide towards a point (used to follow the action). */
+  focus(x: number, z: number) {
+    this.goal = new THREE.Vector3(x, 0, z);
+  }
+  private goal: THREE.Vector3 | null = null;
+
+  private clampTarget() {
+    const b = this.bounds;
+    if (!b) return;
+    this.target.x = THREE.MathUtils.clamp(this.target.x, b.minX, b.maxX);
+    this.target.z = THREE.MathUtils.clamp(this.target.z, b.minZ, b.maxZ);
+  }
+
   update(dt: number, follow?: THREE.Vector3) {
     if (follow) this.target.lerp(follow, 1 - Math.exp(-dt * 8));
+    if (this.goal) {
+      this.target.lerp(this.goal, 1 - Math.exp(-dt * 4));
+      if (this.target.distanceTo(this.goal) < 2) this.goal = null;
+    }
     this.yaw += (this.yawGoal - this.yaw) * (1 - Math.exp(-dt * 10));
     const flat = Math.cos(this.pitch) * this.distance;
     this.camera.position.set(
@@ -54,7 +86,7 @@ export class IsoCamera {
   }
 
   private applyFrustum() {
-    // viewHalfHeight sets the shorter side, so phones held upright still see enough street.
+    // viewHalfHeight sets the shorter side, so phones held upright still see enough of the map.
     const c = this.camera;
     const h = this.aspect >= 1 ? this.viewHalfHeight : (this.viewHalfHeight * 0.8) / this.aspect;
     c.top = h;

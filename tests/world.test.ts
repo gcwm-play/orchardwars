@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { project, unproject, worldRect } from '../src/world/geo.ts';
-import { districtAt } from '../src/world/districts.ts';
+import { territoryAt } from '../src/world/territoryMap.ts';
+import { TERRITORIES } from '../src/game/data.ts';
 import { pointInRing, signedArea, simplify, stitchRings } from '../src/world/polygon.ts';
 import { CollisionGrid } from '../src/game/collision.ts';
 
@@ -28,15 +29,15 @@ describe('geo', () => {
   });
 });
 
-describe('districts', () => {
-  const at = (lat: number, lon: number) => districtAt(...project(lat, lon)).id;
+describe('territories', () => {
+  const at = (lat: number, lon: number) => TERRITORIES[territoryAt(...project(lat, lon))].id;
   it('places real landmarks in the right turf', () => {
-    expect(at(1.3040, 103.8318)).toBe('orchard'); // ION Orchard
-    expect(at(1.3006, 103.8389)).toBe('somerset'); // Somerset MRT
-    expect(at(1.2992, 103.8455)).toBe('dhoby'); // Dhoby Ghaut MRT
-    expect(at(1.2931, 103.8520)).toBe('cityhall'); // City Hall MRT
-    expect(at(1.2898, 103.8560)).toBe('esplanade'); // Esplanade theatres
-    expect(at(1.2884, 103.8466)).toBe('clarkequay'); // Clarke Quay
+    expect(at(1.3040, 103.8318)).toBe('spire'); // ION Orchard
+    expect(at(1.3001, 103.8392)).toBe('somerset-hub'); // Somerset MRT
+    expect(at(1.3003, 103.8452)).toBe('ghaut-plaza'); // Plaza Singapura
+    expect(at(1.2939, 103.8533)).toBe('stamford-atrium'); // Raffles City
+    expect(at(1.2898, 103.8556)).toBe('durian-domes'); // Esplanade theatres
+    expect(at(1.2884, 103.8466)).toBe('neon-quay'); // Clarke Quay
   });
 });
 

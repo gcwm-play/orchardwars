@@ -14,12 +14,13 @@ import { createRequire } from 'node:module';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const { chromium } = createRequire(import.meta.url)('playwright') as any;
 
-const VIEWS: { name: string; query: string; width?: number; height?: number; scale?: number }[] = [
-  { name: 'spawn-orchard', query: '' },
-  { name: 'wide-orchard-road', query: 'zoom=260' },
-  { name: 'civic-district', query: 'x=1150&z=380&zoom=160' },
-  { name: 'phone', query: '', width: 390, height: 844, scale: 2 },
-];
+const VIEWS: { name: string; query: string; width?: number; height?: number; scale?: number; wait?: number }[] = [
+  { name: 'title', query: '' },
+  { name: 'overview', query: 'gang=thorn&seed=7' },
+  { name: 'orchard-close', query: 'gang=thorn&seed=7&x=-850&z=-820&zoom=330' },
+  { name: 'civic-close', query: 'gang=thorn&seed=7&x=1200&z=350&zoom=330' },
+  { name: 'phone', query: 'gang=thorn&seed=7', width: 390, height: 844, scale: 2 },
+]
 
 const argUrl = process.argv.indexOf('--url');
 let base = argUrl > 0 ? process.argv[argUrl + 1] : '';
@@ -53,7 +54,7 @@ for (const v of VIEWS) {
   page.on('console', (m: { type(): string; text(): string }) => m.type() === 'error' && console.error(`[${v.name}] ${m.text()}`));
   await page.goto(`${base}${v.query ? `?${v.query}` : ''}`);
   await page.waitForFunction(() => !document.getElementById('loading'), null, { timeout: 120_000 });
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(v.wait ?? 2500);
   await page.screenshot({ path: `shots/${v.name}.png` });
   console.log(`shots/${v.name}.png`);
   await page.close();

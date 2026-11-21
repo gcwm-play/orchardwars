@@ -11,7 +11,8 @@
     "test": "vitest run",
     "map:fetch": "node tools/fetch-osm.ts",
     "map:build": "node tools/build-map.ts",
-    "shot": "node tools/screenshot.ts"
+    "shot": "node tools/screenshot.ts",
+    "sim": "node tools/simulate.ts"
   },
   "dependencies": {
     "three": "^0.187.0"

@@ -1,16 +1,19 @@
 import * as THREE from 'three';
 import './style.css';
 import { Stage } from './engine/stage.ts';
+import { MapControls } from './engine/mapControls.ts';
 import { loadMap } from './world/mapData.ts';
 import { buildWorld } from './world/buildWorld.ts';
-import { project } from './world/geo.ts';
+import { worldRect } from './world/geo.ts';
+import { anchors, buildTerritoryMap } from './world/territoryMap.ts';
+import { Turf } from './world/turf.ts';
 import { CollisionGrid } from './game/collision.ts';
-import { Player } from './game/player.ts';
-import { Input } from './game/input.ts';
-import { Hud } from './ui/hud.ts';
-
-// Spawn on Orchard Road outside ION Orchard (Orchard MRT).
-const SPAWN = { lat: 1.30395, lon: 103.8318 };
+import { Session } from './game/session.ts';
+import { GameUi } from './ui/gameUi.ts';
+import { Labels } from './ui/labels.ts';
+import { startScreen } from './ui/startScreen.ts';
+import type { GameEvent } from './game/rules.ts';
+import type { PlayerGang } from './game/data.ts';
 
 async function start() {
   const root = document.getElementById('app')!;
@@ -24,46 +27,79 @@ async function start() {
 
   const grid = new CollisionGrid();
   for (const b of map.buildings) grid.fillPolygon(b.p);
+  const territoryMap = buildTerritoryMap(map);
+  const turf = new Turf(territoryMap);
 
   const stage = new Stage(canvas);
-  const world = buildWorld(map, grid);
+  const world = buildWorld(map, grid, turf);
   stage.scene.add(world.group);
+  const rect = worldRect();
+  stage.view.bounds = { minX: rect.minX + 200, maxX: rect.maxX - 200, minZ: rect.minZ + 150, maxZ: rect.maxZ - 150 };
+  stage.view.target.set((rect.minX + rect.maxX) / 2, 0, (rect.minZ + rect.maxZ) / 2);
 
-  const [sx, sz] = grid.nearestOpen(...project(SPAWN.lat, SPAWN.lon), 0.8);
-  const player = new Player(sx, sz);
-  stage.scene.add(player.object);
-
-  const input = new Input(root);
-  const hud = new Hud(root, map);
-
-  // Debug/screenshot hooks: ?x=..&z=..&zoom=.. places the camera.
+  // Debug/screenshot hooks: ?x=&z=&zoom= places the camera, ?gang= skips the title screen,
+  // ?seed= fixes the dice.
   const qs = new URLSearchParams(location.search);
-  if (qs.has('x')) player.position.set(Number(qs.get('x')), 0, Number(qs.get('z') ?? 0));
+  if (qs.has('x')) stage.view.target.set(Number(qs.get('x')), 0, Number(qs.get('z') ?? 0));
   if (qs.has('zoom')) stage.view.viewHalfHeight = Number(qs.get('zoom'));
   stage.view.zoomBy(1);
-  stage.view.target.copy(player.position);
 
   status.remove();
+
+  // Render the city behind the title screen.
   const clock = new THREE.Clock();
-  const toCamera = new THREE.Vector3();
+  let ui: GameUi | null = null;
+  let labels: Labels | null = null;
+  let controls: MapControls | null = null;
   const loop = () => {
     const dt = Math.min(0.05, clock.getDelta());
-    const t = clock.elapsedTime;
-    if (input.tapped('KeyQ')) stage.view.rotate(-1);
-    if (input.tapped('KeyE')) stage.view.rotate(1);
-    const z = input.zoom();
-    if (z !== 1) stage.view.zoomBy(z);
-    player.update(dt, input.move(), input.down('ShiftLeft') || input.down('ShiftRight'), stage.view.heading, grid);
-    stage.update(dt, player.position);
-    world.update(t, player.position, toCamera.subVectors(stage.view.camera.position, stage.view.target).normalize(),
-      Math.max(10, stage.view.viewHalfHeight * 0.4));
-    hud.update(player.position.x, player.position.z, stage.view.heading);
+    controls?.update(dt);
+    stage.update(dt);
+    world.update(clock.elapsedTime, dt);
+    if (ui && labels) {
+      labels.sync(ui.state, ui.state.human, ui.selected, ui.currentTargets);
+      labels.update(stage.view.camera, canvas.clientWidth, canvas.clientHeight, stage.view.viewHalfHeight < 750);
+    }
     stage.render();
-    input.endFrame();
     requestAnimationFrame(loop);
   };
   loop();
-  (window as unknown as { game: unknown }).game = { stage, player, map, grid };
+
+  const saved = Session.load(territoryMap.adjacency);
+  const choice = (qs.get('gang') as PlayerGang | null) ?? (await startScreen(root, saved !== null));
+  let session: Session;
+  let events: GameEvent[] = [];
+  if (choice === 'resume' && saved) session = saved;
+  else ({ session, events } = Session.start(territoryMap.adjacency, choice === 'resume' ? 'thorn' : choice, Number(qs.get('seed') ?? Date.now())));
+
+  // Clicks: try the buildings first (strongholds stand tall), then the ground.
+  const raycaster = new THREE.Raycaster();
+  const buildings = world.group.getObjectByName('buildings') as THREE.Mesh;
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const pickTerritory = (ndc: THREE.Vector2): number => {
+    raycaster.setFromCamera(ndc, stage.view.camera);
+    const hit = raycaster.intersectObject(buildings, false)[0];
+    if (hit?.face) return (buildings.geometry.getAttribute('turf') as THREE.BufferAttribute).getX(hit.face.a);
+    const p = new THREE.Vector3();
+    return raycaster.ray.intersectPlane(groundPlane, p) ? turf.at(p.x, p.z) : -1;
+  };
+
+  ui = new GameUi(root, session, {
+    highlight: (sel, targets) => turf.setHighlight(sel, targets, null),
+    pulse: (t, k) => turf.pulse(t, k),
+    owners: (o) => turf.setOwners(o),
+    focus: (t) => {
+      if (stage.view.viewHalfHeight < 900) stage.view.focus(anchors[t][0], anchors[t][1]);
+    },
+  });
+  const gameUi = ui;
+  labels = new Labels(root, world.labelHeights, (t) => gameUi.tap(t));
+  controls = new MapControls(canvas, stage.view, {
+    tap: (ndc) => gameUi.tap(pickTerritory(ndc)),
+    hover: () => {},
+  });
+  gameUi.begin(events);
+  (window as unknown as { game: unknown }).game = { stage, session, ui: gameUi, turf };
 }
 
 start().catch((err) => {

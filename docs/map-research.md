@@ -81,36 +81,13 @@ Then the city drops towards the river:
   fast travel points or gang spawn points.
 - **The river** itself is a route for boats, smuggling and the River Tide faction.
 
-## Turf districts
+## Territories
 
-Each district is anchored on a real neighbourhood (`src/world/districts.ts`). Every point on the map
-belongs to the closest anchor, so borders are adjusted by moving the anchors. The starting owners
-are placeholders.
-
-| District (real) | In-game name | Anchor | Identity | Starting owner |
-| --- | --- | --- | --- | --- |
-| Tanglin | Tanglin Gate | Tanglin Rd / Orchard Rd | Gated hotels, the western entry | Thorn Syndicate |
-| Orchard | The Arcades | ION / Ngee Ann City junction | Luxury malls, highest income | Thorn Syndicate |
-| Cairnhill / Emerald Hill | Emerald Terraces | Cairnhill Rd | Shophouses, quiet back streets | Unclaimed |
-| Somerset | Somerset Sprawl | Somerset MRT | Youth malls, skate park | Chrome Kampong |
-| River Valley | Valley Blocks | River Valley Rd | Residential, lots of side streets | Unclaimed |
-| Dhoby Ghaut | Ghaut Junction | Dhoby Ghaut MRT | Interchange, the crossroads | Chrome Kampong |
-| Fort Canning | The Fort | Fort Canning Park | High ground, a hideout | Unclaimed |
-| Bras Basah | Basah Bazaar | Bras Basah Rd | Schools, museums, markets | Kopi Kartel |
-| City Hall / Civic | Civic Bastion | City Hall / Padang | Courts, the seat of power | Civic Guard |
-| Esplanade / Marina | Esplanade Domes | Esplanade theatres | The waterfront showpiece | Civic Guard |
-| Clarke Quay | Neon Quay | Clarke Quay | Nightlife, the river bend | River Tide |
-| Boat Quay / Raffles Place | Bank Row | Boat Quay | Money, CBD towers | River Tide |
-
-### Factions (placeholders)
-
-| Gang | Colour | Concept |
-| --- | --- | --- |
-| Thorn Syndicate | lime | Old-money racketeers who run the luxury arcades |
-| River Tide | cyan | Smugglers who own the quays and everything that floats |
-| Kopi Kartel | orange | Night-market fixers; every stall pays them in favours |
-| Chrome Kampong | magenta | Augmented street kids squatting in Somerset's dead malls |
-| Civic Guard | red | A private militia that says it keeps order in the Civic District |
+The game splits the map into 41 territories anchored on the places above: 19 strongholds (the big
+malls, the Esplanade and the Raffles Place towers) and 22 street turfs. The table of territories,
+regions and starting gangs is in [game-design.md](game-design.md), and the data itself in
+`src/game/data.ts`. Every point on the map belongs to the nearest anchor, so borders are adjusted by
+moving anchors. The river is only crossable where a road (a bridge) crosses it.
 
 ## Real names vs in-game names
 
