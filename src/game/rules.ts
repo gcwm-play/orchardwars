@@ -24,6 +24,8 @@ export interface GameState {
   order: PlayerGang[];
   current: PlayerGang;
   human: PlayerGang | null;
+  /** Custom gang names (the player's own team name), by gang. */
+  names?: Partial<Record<GangId, string>>;
   phase: Phase;
   owner: GangId[];
   members: number[];
@@ -83,7 +85,12 @@ export interface Recruits {
 
 // --- Set-up ------------------------------------------------------------------------
 
-export function newGame(adjacency: number[][], human: PlayerGang | null, seed = Date.now()): { state: GameState; events: GameEvent[] } {
+export function newGame(
+  adjacency: number[][],
+  human: PlayerGang | null,
+  seed = Date.now(),
+  names: Partial<Record<GangId, string>> = {},
+): { state: GameState; events: GameEvent[] } {
   const order = shuffle(PLAYER_GANGS.slice(), mulberry(seed >>> 0));
   const state: GameState = {
     version: 1,
@@ -92,6 +99,7 @@ export function newGame(adjacency: number[][], human: PlayerGang | null, seed = 
     order,
     current: order[0],
     human,
+    names,
     phase: 'recruit',
     owner: TERRITORIES.map((t) => t.start.owner),
     members: TERRITORIES.map((t) => t.start.members),
@@ -352,6 +360,7 @@ function shuffle<T>(a: T[], rand: () => number): T[] {
   return a;
 }
 
-export function gangName(g: GangId) {
-  return GANGS[g].name;
+/** A gang's display name: the player's own name for their gang, or the default. */
+export function gangName(s: GameState, g: GangId) {
+  return s.names?.[g] ?? GANGS[g].name;
 }

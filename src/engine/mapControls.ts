@@ -13,6 +13,8 @@ export class MapControls {
   private pointers = new Map<number, { x: number; y: number }>();
   private dragged = 0;
   private pinchDist = 0;
+  private twistAngle = 0;
+  private twistAcc = 0;
   private keys = new Set<string>();
 
   constructor(private readonly el: HTMLElement, private readonly view: IsoCamera, private readonly pick: PickHandlers) {
@@ -20,7 +22,11 @@ export class MapControls {
       el.setPointerCapture(e.pointerId);
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.pointers.size === 1) this.dragged = 0;
-      if (this.pointers.size === 2) this.pinchDist = this.spread();
+      if (this.pointers.size === 2) {
+        this.pinchDist = this.spread();
+        this.twistAngle = this.angle();
+        this.twistAcc = 0;
+      }
     });
     el.addEventListener('pointermove', (e) => {
       const p = this.pointers.get(e.pointerId);
@@ -38,6 +44,16 @@ export class MapControls {
         const d = this.spread();
         if (this.pinchDist > 0) this.view.zoomBy(this.pinchDist / d);
         this.pinchDist = d;
+        // Two-finger twist turns the map a quarter turn once it passes 35 degrees.
+        const a = this.angle();
+        let da = a - this.twistAngle;
+        da = Math.atan2(Math.sin(da), Math.cos(da));
+        this.twistAngle = a;
+        this.twistAcc += da;
+        if (Math.abs(this.twistAcc) > 0.6) {
+          this.view.rotate(Math.sign(this.twistAcc));
+          this.twistAcc = 0;
+        }
         this.dragged = 999;
       }
     });
@@ -81,6 +97,11 @@ export class MapControls {
   private spread() {
     const [a, b] = [...this.pointers.values()];
     return Math.hypot(a.x - b.x, a.y - b.y) || 1;
+  }
+
+  private angle() {
+    const [a, b] = [...this.pointers.values()];
+    return Math.atan2(b.y - a.y, b.x - a.x);
   }
 
   private ndc(x: number, y: number) {

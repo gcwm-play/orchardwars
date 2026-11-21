@@ -1,9 +1,10 @@
 import { GANGS, MALLS_TO_WIN, PLAYER_GANGS, REGIONS, TERRITORIES, type GangId, type PlayerGang } from '../game/data.ts';
 import {
-  AMBUSH_COST, AMBUSH_STRIKE, MAX_AMBUSHES, canAmbush, canAttack, canMove, connected, mallsHeld, territoriesOf,
+  AMBUSH_COST, AMBUSH_STRIKE, MAX_AMBUSHES, canAmbush, canAttack, canMove, connected, mallsHeld, recruitsFor, territoriesOf,
   type Battle, type GameEvent, type GameState, type Recruits,
 } from '../game/rules.ts';
 import { aiAction } from '../game/ai.ts';
+import { attackDice, blitzOdds, defenceDice } from '../game/odds.ts';
 import type { Session } from '../game/session.ts';
 
 // Everything on screen around the map: scoreboard, the action panel for each phase,
@@ -22,8 +23,15 @@ export interface UiHooks {
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const chip = (g: GangId) => `<span class="chip" style="--c:${GANGS[g].color}"></span>`;
-const gname = (g: GangId) => `<b style="color:${GANGS[g].color}">${esc(GANGS[g].name)}</b>`;
+/** Display names, including the player's own team name (set when the UI starts). */
+let NAMES: Partial<Record<GangId, string>> = {};
+const nm = (g: GangId) => NAMES[g] ?? GANGS[g].name;
+const gname = (g: GangId) => `<b style="color:${GANGS[g].color}">${esc(nm(g))}</b>`;
 const tname = (t: number) => `<b>${esc(TERRITORIES[t].name)}</b>`;
+/** Little dice squares: red when attacking, white when defending. */
+const diceChip = (n: number, kind: 'att' | 'def') =>
+  n > 0 ? `<span class="dice ${kind}" title="${kind === 'att' ? 'Attacks' : 'Defends'} with ${n} ${n === 1 ? 'die' : 'dice'}">${'<i></i>'.repeat(n)}</span>` : '';
+const isMallT = (t: number) => TERRITORIES[t].kind === 'mall';
 
 export class GameUi {
   selected: number | null = null;
@@ -46,6 +54,7 @@ export class GameUi {
     this.info = this.el('div', 'info');
     this.panel = this.el('div', 'panel');
     this.battleEl = this.el('div', 'battle');
+    NAMES = session.state.names ?? {};
     session.onEvents((events) => this.onEvents(events));
     this.panel.addEventListener('click', (e) => this.onPanelClick(e));
     this.panel.addEventListener('input', (e) => this.onPanelInput(e));
@@ -208,6 +217,7 @@ export class GameUi {
     for (const e of events) {
       switch (e.type) {
         case 'turn':
+          if (e.gang === s.human) this.turnRecruits = e.recruits;
           this.log(`${chip(e.gang)} ${gname(e.gang)} recruits ${e.recruits.total}.`);
           if (e.gang === s.human) this.toast(`Your turn: ${e.recruits.total} new members to place.`, recruitBreakdown(e.recruits));
           break;
@@ -263,14 +273,18 @@ export class GameUi {
 
     // Scoreboard.
     const scoreHtml =
-      `<div class="round">Round ${s.round} · first to ${MALLS_TO_WIN} strongholds</div>` +
+      `<div class="round">Round ${s.round} · first to ${MALLS_TO_WIN} ◆</div>` +
+      `<div class="g head"><span class="chip" style="--c:transparent"></span><span class="gn"></span><span class="st">◆</span><span class="st">▦</span><span class="st inc">/turn</span></div>` +
       PLAYER_GANGS.map((g) => {
         const alive = s.order.includes(g);
         const terr = territoriesOf(s, g).length;
         const malls = mallsHeld(s, g);
+        const r = recruitsFor(s, g);
+        const income = alive ? r.total - r.firstTurn : 0;
         const cls = ['g', g === s.current ? 'now' : '', alive ? '' : 'dead', g === me ? 'me' : ''].join(' ');
-        return `<div class="${cls}" style="--c:${GANGS[g].color}">${chip(g)}<span class="gn">${esc(GANGS[g].name)}${g === me ? ' (you)' : ''}</span>
-          <span class="st" title="Strongholds held">◆ ${malls}</span><span class="st" title="Territories held">▦ ${terr}</span></div>`;
+        return `<div class="${cls}" style="--c:${GANGS[g].color}">${chip(g)}<span class="gn">${esc(nm(g))}${g === me ? ' (you)' : ''}</span>
+          <span class="st" title="Strongholds held">◆ ${malls}</span><span class="st" title="Territories held">▦ ${terr}</span>
+          <span class="st inc" title="Members recruited per turn at current holdings">+${income}</span></div>`;
       }).join('');
     // Only touch the DOM when something changed, so buttons aren't swapped out mid-click.
     if (scoreHtml !== this.lastScore) this.score.innerHTML = this.lastScore = scoreHtml;
@@ -308,7 +322,7 @@ export class GameUi {
       const amb = this.ambushMode
         ? `<div class="hint">Tap one of your <b>street</b> turfs to hide an ambush there (costs ${AMBUSH_COST}). Rivals who attack it lose ${AMBUSH_STRIKE} members before the fight.</div>`
         : '';
-      return `${head}<div class="phase"><b class="big">${s.reserves}</b> members to place. Tap your turf.</div>${amb}
+      return `${head}<div class="phase"><b class="big">${s.reserves}</b> members to place. Tap your turf.</div>${this.breakdownHtml()}${amb}
         <div class="row">
           ${[1, 3, 0].map((n) => `<button data-act="amount" data-n="${n}" class="${this.amount === n ? 'on' : ''}">${n === 0 ? 'All' : `+${n}`}</button>`).join('')}
           <button data-act="ambush" class="${this.ambushMode ? 'on' : ''}" ${s.reserves < AMBUSH_COST || mine >= MAX_AMBUSHES ? 'disabled' : ''}>Ambush (${AMBUSH_COST})</button>
@@ -324,8 +338,16 @@ export class GameUi {
       if (this.selected !== null && this.target !== null) {
         const t = this.target;
         const mall = TERRITORIES[t].kind === 'mall';
-        body = `<div class="phase">${tname(this.selected)} <b>${s.members[this.selected]}</b> ⟶ ${tname(t)} <b>${s.members[t]}</b>
-          ${mall ? '<span class="tag">Stronghold: defends with 3 dice</span>' : '<span class="tag">Street: could be an ambush</span>'}</div>
+        const from = this.selected;
+        const odds = this.odds(s.members[from], s.members[t], mall);
+        const tone = odds >= 0.7 ? 'good' : odds >= 0.4 ? 'even' : 'bad';
+        body = `<div class="phase">${tname(from)} <b>${s.members[from]}</b> ⟶ ${tname(t)} <b>${s.members[t]}</b></div>
+          <div class="matchup">
+            <span>You roll ${diceChip(attackDice(s.members[from]), 'att')} ${attackDice(s.members[from])}</span>
+            <span>vs ${diceChip(defenceDice(s.members[t], mall), 'def')} ${defenceDice(s.members[t], mall)} ${mall ? '<em>stronghold +1 die</em>' : ''}</span>
+            <span class="odds ${tone}" title="Chance a Blitz takes it">Blitz win ${Math.round(odds * 100)}%</span>
+          </div>
+          ${mall ? '' : '<div class="hint">Street turf: there may be a hidden ambush (−' + AMBUSH_STRIKE + ' attackers).</div>'}
           <div class="row"><button data-act="roll" class="primary">Attack</button><button data-act="blitz">Blitz</button><button data-act="cancel">Cancel</button></div>`;
       }
       return `${head}${body}<div class="row"><button data-act="endAttack">Done attacking</button></div>`;
@@ -342,6 +364,50 @@ export class GameUi {
     }
     return `${head}<div class="phase">${this.selected === null ? 'Optional: tap a turf to move members from, through your own territory.' : `Moving from ${tname(this.selected)}: pick a highlighted turf.`}</div>
       <div class="row"><button data-act="endTurn" class="primary">End turn</button></div>`;
+  }
+
+  /** This turn's recruits, itemised. */
+  private turnRecruits: Recruits | null = null;
+
+  private breakdownHtml(): string {
+    const r = this.turnRecruits ?? recruitsFor(this.state, this.state.human!);
+    const items = [`<span class="bd">${r.base} base</span>`];
+    for (const m of r.malls) items.push(`<span class="bd mall">◆ ${esc(TERRITORIES[m.t].name)} +${m.n}</span>`);
+    for (const g of r.regions) items.push(`<span class="bd region">${esc(REGIONS.find((x) => x.id === g.region)!.name)} region +${g.n}</span>`);
+    if (r.firstTurn) items.push(`<span class="bd">opening +${r.firstTurn}</span>`);
+    return `<div class="breakdown">${items.join('')}</div>`;
+  }
+
+  private oddsCache = new Map<string, number>();
+  private odds(att: number, def: number, mall: boolean) {
+    const key = `${att}/${def}/${mall}`;
+    if (!this.oddsCache.has(key)) this.oddsCache.set(key, blitzOdds(att, def, mall));
+    return this.oddsCache.get(key)!;
+  }
+
+  /**
+   * Extra info on each map badge: income on strongholds, and dice counts that matter right now
+   * (your attack dice on your turn, defence dice on targets and on your threatened borders).
+   */
+  badgeChips(): string[] {
+    const s = this.state;
+    const me = s.human;
+    const myTurn = this.session.isHumanTurn;
+    const attacking = myTurn && s.phase === 'attack' && !s.occupy;
+    return TERRITORIES.map((def, t) => {
+      let html = '';
+      if (def.kind === 'mall') html += `<span class="inc" title="Pays its holder +${def.income} members per turn">+${def.income}</span>`;
+      if (!me || s.phase === 'over') return html;
+      const mine = s.owner[t] === me;
+      const border = mine && s.adjacency[t].some((j) => s.owner[j] !== me);
+      if (attacking) {
+        if (mine && border && s.members[t] >= 2 && (this.selected === null || this.selected === t)) html += diceChip(attackDice(s.members[t]), 'att');
+        if (this.currentTargets.includes(t)) html += diceChip(defenceDice(s.members[t], isMallT(t)), 'def');
+      } else if (border) {
+        html += diceChip(defenceDice(s.members[t], isMallT(t)), 'def');
+      }
+      return html;
+    });
   }
 
   private slider(min: number, max: number) {
@@ -362,7 +428,8 @@ export class GameUi {
       ? `<span class="tag">Stronghold · +${d.income} members/turn · defends with 3 dice</span>`
       : `<span class="tag">Street · ambush ground</span>`;
     const ambush = s.ambush[t] && s.ambush[t] === s.human ? `<span class="tag warn">Your ambush is hidden here</span>` : '';
-    this.info.innerHTML = `<div class="tn">${esc(d.name)}</div><div class="real">${esc(d.real)} · ${esc(region.name)} (+${region.bonus} if you hold it all)</div>
+    this.info.innerHTML = `<div class="tn">${esc(d.name)}</div><div class="real">${esc(d.real)}</div>
+      <div class="real">${esc(region.name)} region: +${region.bonus}/turn if you hold all of it</div>
       <div>${chip(owner)} ${gname(owner)} · <b>${s.members[t]}</b> members</div>${kind}${ambush}`;
     this.info.classList.add('show');
   }
@@ -388,8 +455,8 @@ export class GameUi {
     const s = this.state;
     const you = g === s.human;
     const div = this.el('div', 'win');
-    div.innerHTML = `<div class="card"><div class="big" style="color:${GANGS[g].color}">${you ? 'The city is yours' : `${esc(GANGS[g].name)} rules the city`}</div>
-      <p>${reason === 'malls' ? `${esc(GANGS[g].name)} held ${MALLS_TO_WIN} strongholds.` : `${esc(GANGS[g].name)} is the last gang standing.`} Round ${s.round}.</p>
+    div.innerHTML = `<div class="card"><div class="big" style="color:${GANGS[g].color}">${you ? 'The city is yours' : `${esc(nm(g))} rules the city`}</div>
+      <p>${reason === 'malls' ? `${esc(nm(g))} held ${MALLS_TO_WIN} strongholds.` : `${esc(nm(g))} is the last gang standing.`} Round ${s.round}.</p>
       <button class="primary" onclick="location.reload()">Play again</button></div>`;
   }
 

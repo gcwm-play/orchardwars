@@ -16,8 +16,9 @@ npm run dev        # http://localhost:5173
 ```
 
 Controls: **drag** to pan, **mouse wheel** or **pinch** to zoom, **Q/E** to turn the view, **WASD** or
-arrow keys to pan. Tap a territory or its badge to select it. You play against three computer gangs,
-and the game saves itself in the browser.
+arrow keys to pan. Rotate and zoom also have on-screen buttons. Tap a territory or its badge to select it. Name your gang,
+get dropped into a random corner, and play against three computer gangs. The game saves itself in the
+browser.
 
 ## Scripts
 

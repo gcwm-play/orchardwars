@@ -28,6 +28,8 @@ export class Turf {
     ids.needsUpdate = true;
     this.stateTex = new THREE.DataTexture(this.state, WIDTH, 2, THREE.RGBAFormat, THREE.UnsignedByteType);
     this.stateTex.magFilter = this.stateTex.minFilter = THREE.NearestFilter;
+    // Row 1, alpha: 255 for strongholds (drawn with stripes and a brighter border).
+    TERRITORIES.forEach((t, i) => (this.state[(WIDTH + i) * 4 + 3] = t.kind === 'mall' ? 255 : 0));
     this.stateTex.needsUpdate = true;
     this.uniforms = {
       uTurfIds: { value: ids },
@@ -109,14 +111,18 @@ vec3 turfGround(inout vec3 diffuse, float tintAmount) {
   float id = turfIdAt(uv);
   vec3 owner = turfOwner(id).rgb;
   vec4 flags = turfFlags(id);
-  diffuse = mix(diffuse, owner * 0.6, tintAmount);
+  float mall = flags.a;
+  diffuse = mix(diffuse, owner * 0.6, tintAmount * (1.0 + mall * 0.6));
+  // Strongholds: diagonal stripes across the whole territory.
+  float stripe = step(0.62, fract((vTurfPos.x + vTurfPos.z) / 16.0));
+  diffuse = mix(diffuse, owner * 0.85, mall * stripe * tintAmount * 0.9);
   // Border: a neighbouring sample belongs to another territory.
   float b = 0.0;
   b += step(0.5, abs(turfIdAt(uv + vec2(uTurfTexel.x, 0.0)) - id));
   b += step(0.5, abs(turfIdAt(uv - vec2(uTurfTexel.x, 0.0)) - id));
   b += step(0.5, abs(turfIdAt(uv + vec2(0.0, uTurfTexel.y)) - id));
   b += step(0.5, abs(turfIdAt(uv - vec2(0.0, uTurfTexel.y)) - id));
-  vec3 glow = owner * min(b, 1.0) * 0.9;
+  vec3 glow = owner * min(b, 1.0) * (0.9 + mall * 0.9);
   float pulse = 0.55 + 0.45 * sin(uTime * 4.0);
   glow += vec3(1.0) * flags.r * 0.22 * pulse;            // selected
   glow += vec3(1.0, 0.25, 0.3) * flags.g * 0.2 * pulse;  // valid target

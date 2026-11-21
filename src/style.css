@@ -188,3 +188,115 @@ button { font: inherit; color: inherit; }
   .battle { top: 16%; min-width: 0; width: calc(100vw - 40px); padding: 8px 10px; font-size: 13px; }
   .battle .die { width: 24px; height: 24px; font-size: 13px; }
 }
+
+/* --- At-a-glance info: badges, income, dice --------------------------------------- */
+.tl .chips { display: inline-flex; align-items: center; gap: 3px; }
+.tl.street .n { min-width: 24px; height: 24px; font-size: 13px; }
+.tl.mall .n { width: 36px; height: 36px; font-size: 15px; }
+.tl.mall .n::before { inset: 5px; outline: 2px solid rgba(255, 255, 255, 0.75); outline-offset: -5px; }
+.inc {
+  display: inline-block; padding: 0 4px; font-size: 11px; font-weight: 700; line-height: 15px;
+  color: #1b1405; background: #ffd34d; border-radius: 3px; box-shadow: 0 0 6px rgba(255, 211, 77, 0.6);
+}
+.dice { display: inline-flex; gap: 2px; padding: 2px; border-radius: 3px; background: rgba(10, 8, 20, 0.8); vertical-align: middle; }
+.dice i { width: 7px; height: 7px; border-radius: 1.5px; }
+.dice.att i { background: var(--danger); box-shadow: 0 0 4px var(--danger); }
+.dice.def i { background: #f2eefc; }
+.panel .dice i, .legend .dice i { width: 10px; height: 10px; }
+
+.score .g.head { color: var(--muted); font-size: 10px; text-transform: uppercase; padding-top: 0; padding-bottom: 0; }
+.score .st.inc { background: none; box-shadow: none; color: #ffd34d; min-width: 42px; font-size: inherit; padding: 0; }
+.score .g.head .st.inc { color: var(--muted); font-size: 10px; }
+
+.breakdown { display: flex; flex-wrap: wrap; gap: 4px; margin: -2px 0 8px; font-size: 11px; }
+.breakdown .bd { padding: 2px 6px; border: 1px solid var(--line); color: var(--muted); }
+.breakdown .bd.mall { color: #ffd34d; border-color: rgba(255, 211, 77, 0.4); }
+.breakdown .bd.region { color: var(--accent); border-color: rgba(198, 224, 58, 0.4); }
+
+.matchup { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: -2px 0 8px; font-size: 13px; }
+.matchup em { font-style: normal; font-size: 11px; color: #ffd34d; }
+.matchup .odds { margin-left: auto; padding: 3px 8px; font-weight: 700; border: 1px solid currentColor; }
+.matchup .odds.good { color: var(--accent); }
+.matchup .odds.even { color: #ffd34d; }
+.matchup .odds.bad { color: var(--danger); }
+
+/* --- Map controls and legend --------------------------------------------------------- */
+.viewctl {
+  position: absolute; right: 10px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 2;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+}
+.viewctl .btns { display: grid; grid-template-columns: repeat(2, 40px); gap: 4px; }
+.viewctl button {
+  width: 40px; height: 40px; font-size: 18px; font-weight: 700; cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(6px);
+}
+.viewctl button:hover { background: rgba(40, 32, 70, 0.9); }
+.viewctl .compass { grid-column: span 2; width: auto; }
+.viewctl .needle { display: inline-flex; flex-direction: column; align-items: center; line-height: 1; font-size: 11px; color: var(--ink); }
+.viewctl .needle::before { content: '▲'; font-size: 11px; color: var(--danger); }
+.legend { position: relative; max-width: 270px; }
+.legend .lg-toggle { position: absolute; right: 0; bottom: 0; }
+.legend .lg-body {
+  display: none; padding: 8px 10px; margin-right: 46px; font-size: 11px; line-height: 1.5;
+  background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(6px);
+}
+.legend.open .lg-body { display: flex; flex-direction: column; gap: 6px; }
+.legend .lg { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: middle; background: var(--muted); }
+.legend .lg.mall { transform: rotate(45deg); outline: 1.5px solid #fff; outline-offset: -3px;
+  background: repeating-linear-gradient(45deg, #8c93a6 0 3px, #5a5f70 3px 6px); }
+.legend .lg.street { border-radius: 50%; }
+
+@media (max-width: 900px) {
+  .viewctl { bottom: 190px; }
+}
+@media (max-width: 640px) {
+  .viewctl .btns { grid-template-columns: repeat(2, 36px); }
+  .viewctl button { width: 36px; height: 36px; font-size: 16px; }
+  .viewctl .compass { width: auto; }
+  .tl.mall .n { width: 30px; height: 30px; font-size: 12px; }
+  .tl.street .n { min-width: 20px; height: 20px; font-size: 11px; }
+  .info { bottom: 190px; right: 92px; }
+}
+
+/* --- Street names ------------------------------------------------------------------- */
+.streets { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+.streets span {
+  position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; color: rgba(235, 230, 250, 0.72);
+  text-shadow: 0 0 3px #000, 0 0 6px #000;
+}
+.labels { z-index: 1; }
+
+/* --- Naming and briefing ------------------------------------------------------------ */
+.name-form { margin-top: 14px; }
+.name-form label { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 6px; }
+.name-row { display: flex; gap: 6px; }
+.name-row input {
+  flex: 1; min-width: 0; padding: 10px 12px; font: inherit; font-size: 20px; font-weight: 700; color: var(--ink);
+  background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); outline: none;
+}
+.name-row input:focus { border-color: var(--accent); }
+.name-row .reroll { width: 48px; font-size: 22px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); cursor: pointer; }
+.name-form .note { font-size: 13px; color: var(--muted); }
+.start .go { padding: 12px 22px; background: var(--accent); color: #12100a; border: 0; font-weight: 700; font-size: 16px; cursor: pointer; }
+
+.briefing .card { border-top: 4px solid var(--c); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.briefing .eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
+.briefing h1 { margin: 2px 0 4px; font-size: clamp(28px, 6vw, 44px); letter-spacing: 0.04em; text-shadow: none; }
+.briefing .swatch { display: inline-block; width: 14px; height: 14px; background: var(--c); box-shadow: 0 0 8px var(--c); vertical-align: middle; }
+.briefing .perk { padding: 8px 12px; border-left: 3px solid var(--c); background: rgba(255, 255, 255, 0.05); }
+.briefing .cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+.briefing ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.briefing li .muted { display: block; font-size: 12px; }
+.briefing li .inc + .muted { display: inline; }
+.briefing .muted { color: var(--muted); }
+.briefing .small { font-size: 12px; }
+.briefing .income li { display: flex; justify-content: space-between; gap: 10px; }
+.briefing .income .total { border-top: 1px solid var(--line); padding-top: 6px; color: var(--accent); }
+.briefing .kind { display: inline-block; width: 10px; height: 10px; margin-right: 6px; background: var(--c); }
+.briefing .kind.mall { transform: rotate(45deg); outline: 1.5px solid #fff; outline-offset: -3px; }
+.briefing .kind.street { border-radius: 50%; }
+.briefing .card { background: rgba(16, 12, 30, 0.96); padding-bottom: 0; }
+.briefing .go-bar { position: sticky; bottom: 0; margin: 16px -22px 0; padding: 12px 22px; background: rgba(16, 12, 30, 0.98); border-top: 1px solid var(--line); }
+.briefing .income b { white-space: nowrap; }
+@media (max-width: 640px) { .briefing .cols { grid-template-columns: 1fr; } }

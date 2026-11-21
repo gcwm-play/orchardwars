@@ -89,23 +89,13 @@ regions and starting gangs is in [game-design.md](game-design.md), and the data 
 `src/game/data.ts`. Every point on the map belongs to the nearest anchor, so borders are adjusted by
 moving anchors. The river is only crossable where a road (a bridge) crosses it.
 
-## Real names vs in-game names
+## Names
 
-Street names, neighbourhoods, parks and public landmarks are fine to use as they are. Shopping malls,
-hotels and company buildings are trademarks, so the game should give them made-up names. The
-map file keeps the OSM name for reference, but the game doesn't display it. Some ideas:
-
-| Real | In-game idea |
-| --- | --- |
-| ION Orchard | The Spire |
-| Ngee Ann City | Twin Vaults |
-| Paragon / Wisma Atria | Paragon Row (generic) |
-| Plaza Singapura | Ghaut Plaza |
-| Raffles City | Stamford Atrium |
-| Marina Square / Suntec City | Marina Stacks / Fountain Towers |
-| Esplanade theatres | The Durian Domes (the public nickname) |
-| National Library | The Archive |
-| Capitol Singapore | The Capitol |
+The game uses real Singapore names for streets, neighbourhoods, parks, landmarks and malls (ION
+Orchard, Ngee Ann City, Plaza Singapura, Raffles City…), at the owner's request. Street labels on
+the map come straight from OSM. If the game is ever published commercially, check whether mall and
+brand names need permission, or swap them for made-up names in `src/game/data.ts` (only the `name`
+fields need to change).
 
 ## Scale and gameplay notes
 

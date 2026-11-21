@@ -11,8 +11,8 @@ export class Session {
 
   private constructor(public state: GameState) {}
 
-  static start(adjacency: number[][], human: PlayerGang, seed = Date.now()): { session: Session; events: GameEvent[] } {
-    const { state, events } = newGame(adjacency, human, seed);
+  static start(adjacency: number[][], human: PlayerGang, seed = Date.now(), teamName?: string): { session: Session; events: GameEvent[] } {
+    const { state, events } = newGame(adjacency, human, seed, teamName ? { [human]: teamName } : {});
     const session = new Session(state);
     session.save();
     return { session, events };

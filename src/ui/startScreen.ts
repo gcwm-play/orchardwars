@@ -1,27 +1,30 @@
-import { GANGS, MALLS_TO_WIN, PLAYER_GANGS, type PlayerGang } from '../game/data.ts';
+import { GANGS, MALLS_TO_WIN, PLAYER_GANGS, suggestGangName } from '../game/data.ts';
 import { AMBUSH_COST, AMBUSH_STRIKE } from '../game/rules.ts';
 
-// Title screen: pick a gang (or continue a saved game) and read the rules.
+// Title screen: name your gang (a suggestion is filled in) or continue a saved game.
+// Your corner of the city is drawn at random afterwards.
 
-export function startScreen(root: HTMLElement, canResume: boolean): Promise<PlayerGang | 'resume'> {
+export type StartChoice = { name: string } | 'resume';
+
+export function startScreen(root: HTMLElement, canResume: boolean): Promise<StartChoice> {
   return new Promise((resolve) => {
     const el = document.createElement('div');
     el.className = 'start';
-    const difficulty: Record<PlayerGang, string> = { thorn: 'Rich neighbours', kopi: 'Quiet start', tide: 'River fortress', chrome: 'Hard: rivals on two sides' };
+    const corners = PLAYER_GANGS.map((g) => `<span style="color:${GANGS[g].color}">${GANGS[g].corner.split(' (')[0]}</span>`).join(', ');
     el.innerHTML = `
       <div class="card">
         <h1>ORCHARD WARS</h1>
         <p class="sub">Singapore, after the collapse. Four gangs, one city, from Orchard Road to the river.</p>
-        ${canResume ? '<button class="primary resume">Continue saved game</button>' : ''}
-        <h2>Choose your gang</h2>
-        <div class="gangs">
-          ${PLAYER_GANGS.map((g) => `
-            <button class="gang" data-g="${g}" style="--c:${GANGS[g].color}">
-              <span class="gname">${GANGS[g].name}</span>
-              <span class="corner">${GANGS[g].corner} · ${difficulty[g]}</span>
-              <span class="blurb">${GANGS[g].blurb}</span>
-            </button>`).join('')}
-        </div>
+        ${canResume ? '<button class="primary resume" type="button">Continue saved game</button>' : ''}
+        <form class="name-form">
+          <label for="gang-name">Name your gang</label>
+          <div class="name-row">
+            <input id="gang-name" name="gang" maxlength="24" autocomplete="off" spellcheck="false" />
+            <button type="button" class="reroll" title="Suggest another name">🎲</button>
+          </div>
+          <p class="note">You'll be dropped into one corner of the city at random: ${corners}.</p>
+          <button class="primary go" type="submit">Claim your turf</button>
+        </form>
         <details>
           <summary>How to play</summary>
           <ol>
@@ -41,13 +44,22 @@ export function startScreen(root: HTMLElement, canResume: boolean): Promise<Play
         <p class="credit">Map data © OpenStreetMap contributors</p>
       </div>`;
     root.appendChild(el);
-    el.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('button');
-      if (!btn) return;
-      if (btn.classList.contains('resume')) resolve('resume');
-      else if (btn.dataset.g) resolve(btn.dataset.g as PlayerGang);
-      else return;
+    const input = el.querySelector<HTMLInputElement>('#gang-name')!;
+    input.value = suggestGangName();
+    input.placeholder = input.value;
+    el.querySelector('.reroll')!.addEventListener('click', () => {
+      input.value = suggestGangName();
+      input.focus();
+    });
+    el.querySelector('.resume')?.addEventListener('click', () => {
       el.remove();
+      resolve('resume');
+    });
+    el.querySelector('form')!.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = input.value.trim().replace(/\s+/g, ' ').slice(0, 24) || input.placeholder;
+      el.remove();
+      resolve({ name });
     });
   });
 }

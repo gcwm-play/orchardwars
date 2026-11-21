@@ -22,31 +22,52 @@ crossed at its bridges** (`src/world/territoryMap.ts`).
 
 | Region | Territories | Bonus |
 | --- | --- | --- |
-| Tanglin | Tanglin Bazaar ◆, Tanglin Village, Boulevard, Grange | 1 |
-| Orchard Belt | The Spire ◆, Twin Vaults ◆, Gilded Arcade ◆, Scotts Tower ◆ | 3 |
-| Somerset Hills | Somerset Hub ◆, Emerald Terraces, Cairnhill, Killiney, Istana Gate | 3 |
-| River Valley | World's End Mall ◆, Neon Quay ◆, Valley Blocks, Sultan Row, Robertson Quay | 3 |
-| Tiong Bahru | Bahru Plaza ◆, Bahru Estate, Havelock, Zion Bridge | 2 |
-| Dhoby Ghaut | Ghaut Plaza ◆, The Fort, Basah Bazaar | 2 |
-| Bugis | Junction Dome ◆, Rochor, Bencoolen, Beach Road | 1 |
-| Civic District | Stamford Atrium ◆, The Capitol ◆, Circuit Market ◆, The Padang | 4 |
-| Marina | Marina Stacks ◆, Fountain Towers ◆, Durian Domes ◆, Marina Centre | 3 |
-| Bank Row | Pagoda Point ◆, Bank Row ◆, Hong Lim, Boat Quay | 2 |
+| Tanglin | Tanglin Mall ◆, Cuscaden Road, Orchard Boulevard, Grange Road | 1 |
+| Orchard | ION Orchard ◆, Ngee Ann City ◆, Paragon ◆, Scotts Square ◆ | 3 |
+| Somerset | 313@Somerset ◆, Emerald Hill, Cairnhill, Killiney Road, Istana Park | 3 |
+| River Valley | Great World ◆, Clarke Quay ◆, River Valley Road, Mohamed Sultan Road, Robertson Quay | 3 |
+| Tiong Bahru | Tiong Bahru Plaza ◆, Tiong Bahru Estate, Havelock Road, Zion Road | 2 |
+| Dhoby Ghaut | Plaza Singapura ◆, Fort Canning Park, Bras Basah Road | 2 |
+| Bugis | Bugis Junction ◆, Rochor, Bencoolen Street, Beach Road | 1 |
+| Civic District | Raffles City ◆, Capitol Singapore ◆, Funan ◆, The Padang | 4 |
+| Marina | Marina Square ◆, Suntec City ◆, Esplanade ◆, Marina Centre | 3 |
+| Raffles Place | Chinatown Point ◆, Raffles Place ◆, Hong Lim Park, Boat Quay | 2 |
 
-◆ = stronghold. In-game names stand in for the real malls (see `docs/map-research.md`).
+◆ = stronghold. Territories use their real Singapore names; each one's `real` field in `data.ts` lists
+the landmarks it covers (e.g. ION Orchard includes Wisma Atria).
 
 ## Gangs and the start
 
-Four gangs each start in a **corner** with 4 territories and one stronghold (Bank Row has two). The
-rest of the city starts with grey **Civic Guard** garrisons of 2–9 members. The Civic Guard never
-attacks, but the rich centre (Orchard Belt, the Civic District, Marina) is heavily defended.
+You name your own gang on the title screen. A name is suggested, and 🎲 rolls another. You're then
+dropped into one of the four **corners** at random, and the other three corners go to computer gangs.
+Each corner has 4 territories and one stronghold (Raffles Place has two). A **briefing** then shows:
 
-| Gang | Corner | Character |
+- what you hold;
+- your income, itemised;
+- the perk of your corner;
+- the strongholds and rival gangs next door.
+
+The rest of the city starts with grey **Civic Guard** garrisons of 2–9 members. The Civic Guard never
+attacks, but the rich centre (Orchard, the Civic District, Marina) is heavily defended.
+
+| Corner | Default gang (computer) | Character |
 | --- | --- | --- |
-| Thorn Syndicate | Tanglin (NW) | Next to the rich Orchard Belt |
-| Kopi Kartel | Bugis (NE) | No rival on its border at the start |
-| River Tide | Bank Row (SE) | Fortified CBD towers; +6 opening recruits |
-| Chrome Kampong | Tiong Bahru (SW) | Rivals on two sides; +7 opening recruits |
+| Tanglin (NW) | Thorn Syndicate | Next to ION Orchard and Ngee Ann City, the richest and best-guarded malls |
+| Bugis (NE) | Kopi Kartel | No rival on its border at the start |
+| Raffles Place (SE) | River Tide | Two strongholds, river as a moat; +6 opening recruits |
+| Tiong Bahru (SW) | Chrome Kampong | Rivals on two sides; +7 opening recruits |
+
+## Reading the map
+
+- **Strongholds** are diamonds with a gold `+N` income tag. Their territory is striped, and their real
+  buildings glow.
+- **Streets** are round badges.
+- **Dice chips** on the badges: red squares are the dice your turf attacks with (on your attack phase).
+  White squares are defence dice: shown on targets, and on your border turf during other gangs' turns.
+- The **attack panel** shows both sides' dice and the chance that a Blitz takes the turf.
+- The **scoreboard** shows every gang's strongholds, territories and recruits per turn.
+- **Map controls** (bottom right): rotate, zoom, north-up compass, whole-map view and a map key. Rotation
+  also works with Q/E and a two-finger twist. Street names appear when you zoom in.
 
 ## A turn
 

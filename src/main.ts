@@ -10,10 +10,12 @@ import { Turf } from './world/turf.ts';
 import { CollisionGrid } from './game/collision.ts';
 import { Session } from './game/session.ts';
 import { GameUi } from './ui/gameUi.ts';
-import { Labels } from './ui/labels.ts';
+import { Labels, StreetNames } from './ui/labels.ts';
 import { startScreen } from './ui/startScreen.ts';
+import { ViewControls } from './ui/viewControls.ts';
 import type { GameEvent } from './game/rules.ts';
-import type { PlayerGang } from './game/data.ts';
+import { PLAYER_GANGS, type PlayerGang } from './game/data.ts';
+import { briefing } from './ui/briefing.ts';
 
 async function start() {
   const root = document.getElementById('app')!;
@@ -51,26 +53,38 @@ async function start() {
   let ui: GameUi | null = null;
   let labels: Labels | null = null;
   let controls: MapControls | null = null;
+  let viewCtl: ViewControls | null = null;
+  const streets = new StreetNames(root, map);
   const loop = () => {
     const dt = Math.min(0.05, clock.getDelta());
     controls?.update(dt);
     stage.update(dt);
     world.update(clock.elapsedTime, dt);
     if (ui && labels) {
-      labels.sync(ui.state, ui.state.human, ui.selected, ui.currentTargets);
-      labels.update(stage.view.camera, canvas.clientWidth, canvas.clientHeight, stage.view.viewHalfHeight < 750);
+      labels.sync(ui.state, ui.state.human, ui.selected, ui.currentTargets, ui.badgeChips());
+      labels.update(stage.view.camera, canvas.clientWidth, canvas.clientHeight, stage.view.viewHalfHeight < 750, stage.view.viewHalfHeight < 1400);
     }
+    viewCtl?.update(stage.view.heading);
+    streets.update(stage.view.camera, canvas.clientWidth, canvas.clientHeight, stage.view.viewHalfHeight < 650);
     stage.render();
     requestAnimationFrame(loop);
   };
   loop();
 
   const saved = Session.load(territoryMap.adjacency);
-  const choice = (qs.get('gang') as PlayerGang | null) ?? (await startScreen(root, saved !== null));
+  // ?gang= picks the corner directly (for testing); otherwise name your gang and draw a corner.
+  const forced = qs.get('gang') as PlayerGang | null;
+  const choice = forced ? { name: qs.get('name') ?? '' } : await startScreen(root, saved !== null);
   let session: Session;
   let events: GameEvent[] = [];
+  let fresh = false;
   if (choice === 'resume' && saved) session = saved;
-  else ({ session, events } = Session.start(territoryMap.adjacency, choice === 'resume' ? 'thorn' : choice, Number(qs.get('seed') ?? Date.now())));
+  else {
+    const name = choice === 'resume' ? '' : choice.name;
+    const corner = forced ?? PLAYER_GANGS[Math.floor(Math.random() * PLAYER_GANGS.length)];
+    ({ session, events } = Session.start(territoryMap.adjacency, corner, Number(qs.get('seed') ?? Date.now()), name || undefined));
+    fresh = !forced || qs.has('brief');
+  }
 
   // Clicks: try the buildings first (strongholds stand tall), then the ground.
   const raycaster = new THREE.Raycaster();
@@ -98,6 +112,23 @@ async function start() {
     tap: (ndc) => gameUi.tap(pickTerritory(ndc)),
     hover: () => {},
   });
+  const home = new THREE.Vector3((rect.minX + rect.maxX) / 2, 0, (rect.minZ + rect.maxZ) / 2);
+  const homeZoom = 1250;
+  viewCtl = new ViewControls(root, stage.view, () => {
+    stage.view.focus(home.x, home.z);
+    stage.view.zoomBy(homeZoom / stage.view.viewHalfHeight);
+    stage.view.resetAngle();
+  });
+  if (fresh) {
+    // Fly to the new corner while the briefing is up, then start play.
+    const me = session.state.human!;
+    const mine = session.state.owner.map((o, i) => (o === me ? i : -1)).filter((i) => i >= 0);
+    const cx = mine.reduce((a, t) => a + anchors[t][0], 0) / mine.length;
+    const cz = mine.reduce((a, t) => a + anchors[t][1], 0) / mine.length;
+    stage.view.focus(cx, cz);
+    stage.view.zoomBy(650 / stage.view.viewHalfHeight);
+    await briefing(root, session.state, me);
+  }
   gameUi.begin(events);
   (window as unknown as { game: unknown }).game = { stage, session, ui: gameUi, turf };
 }

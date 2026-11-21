@@ -38,6 +38,16 @@ export class IsoCamera {
     this.yawGoal += (quarters * Math.PI) / 2;
   }
 
+  /** Turn the shortest way round so north is straight up the screen. */
+  faceNorth() {
+    this.yawGoal = Math.round(this.yawGoal / (Math.PI * 2)) * Math.PI * 2;
+  }
+
+  /** Back to the starting angle (north-west up, the diagonal diorama view). */
+  resetAngle() {
+    this.yawGoal = Math.round(this.yawGoal / (Math.PI * 2)) * Math.PI * 2 + THREE.MathUtils.degToRad(45);
+  }
+
   /** Current heading of the camera. */
   get heading() {
     return this.yaw;

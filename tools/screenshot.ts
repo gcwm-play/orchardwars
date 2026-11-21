@@ -16,11 +16,13 @@ const { chromium } = createRequire(import.meta.url)('playwright') as any;
 
 const VIEWS: { name: string; query: string; width?: number; height?: number; scale?: number; wait?: number }[] = [
   { name: 'title', query: '' },
+  { name: 'briefing', query: 'gang=chrome&brief=1&name=Void%20Deck%20Kings&seed=7' },
   { name: 'overview', query: 'gang=thorn&seed=7' },
   { name: 'orchard-close', query: 'gang=thorn&seed=7&x=-850&z=-820&zoom=330' },
   { name: 'civic-close', query: 'gang=thorn&seed=7&x=1200&z=350&zoom=330' },
   { name: 'phone', query: 'gang=thorn&seed=7', width: 390, height: 844, scale: 2 },
-]
+  { name: 'phone-briefing', query: 'gang=tide&brief=1&seed=7', width: 390, height: 844, scale: 2 },
+];
 
 const argUrl = process.argv.indexOf('--url');
 let base = argUrl > 0 ? process.argv[argUrl + 1] : '';
