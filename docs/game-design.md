@@ -65,6 +65,10 @@ attacks, but the rich centre (Orchard, the Civic District, Marina) is heavily de
 - **Dice chips** on the badges: red squares are the dice your turf attacks with (on your attack phase).
   White squares are defence dice: shown on targets, and on your border turf during other gangs' turns.
 - The **attack panel** shows both sides' dice and the chance that a Blitz takes the turf.
+- **Battles** animate: the dice tumble, then line up highest against highest. Each matched pair shows a
+  `−1` on the loser's side (ties go to the defender), extra dice are marked "not compared", and a running
+  tally counts each side's losses. A Blitz plays its rounds one after another. Your own battles stay on
+  screen until your next action; computer battles show their final round and then fade.
 - The **scoreboard** shows every gang's strongholds, territories and recruits per turn.
 - **Map controls** (bottom right): rotate, zoom, north-up compass, whole-map view and a map key. Rotation
   also works with Q/E and a two-finger twist. Street names appear when you zoom in.

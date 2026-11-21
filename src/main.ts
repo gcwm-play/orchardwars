@@ -62,7 +62,7 @@ async function start() {
     world.update(clock.elapsedTime, dt);
     if (ui && labels) {
       labels.sync(ui.state, ui.state.human, ui.selected, ui.currentTargets, ui.badgeChips());
-      labels.update(stage.view.camera, canvas.clientWidth, canvas.clientHeight, stage.view.viewHalfHeight < 750, stage.view.viewHalfHeight < 1400);
+      labels.update(stage.view.camera, canvas.clientWidth, canvas.clientHeight, stage.view.viewHalfHeight < 750, stage.view.viewHalfHeight < (canvas.clientWidth < 640 ? 700 : 1400));
     }
     viewCtl?.update(stage.view.heading);
     streets.update(stage.view.camera, canvas.clientWidth, canvas.clientHeight, stage.view.viewHalfHeight < 650);

@@ -6,6 +6,7 @@ import {
 import { aiAction } from '../game/ai.ts';
 import { attackDice, blitzOdds, defenceDice } from '../game/odds.ts';
 import type { Session } from '../game/session.ts';
+import { BattleView } from './battleView.ts';
 
 // Everything on screen around the map: scoreboard, the action panel for each phase,
 // the battle pop-up, the event feed, and running the computer gangs' turns.
@@ -47,6 +48,7 @@ export class GameUi {
   private readonly battleEl: HTMLElement;
   private readonly info: HTMLElement;
   private battleTimer = 0;
+  private readonly battleView: BattleView;
 
   constructor(private readonly root: HTMLElement, private readonly session: Session, private readonly hooks: UiHooks) {
     this.score = this.el('div', 'score');
@@ -54,6 +56,7 @@ export class GameUi {
     this.info = this.el('div', 'info');
     this.panel = this.el('div', 'panel');
     this.battleEl = this.el('div', 'battle');
+    this.battleView = new BattleView(this.battleEl);
     NAMES = session.state.names ?? {};
     session.onEvents((events) => this.onEvents(events));
     this.panel.addEventListener('click', (e) => this.onPanelClick(e));
@@ -199,7 +202,7 @@ export class GameUi {
     clearTimeout(this.aiTimer);
     const s = this.state;
     if (s.phase === 'over' || this.session.isHumanTurn) return;
-    const delay = this.fast ? 90 : s.phase === 'attack' ? 700 : 380;
+    const delay = this.fast ? 90 : s.phase === 'attack' ? 1500 : 380;
     this.aiTimer = window.setTimeout(() => {
       const action = aiAction(this.state);
       if (action.type === 'attack') this.hooks.focus(action.to);
@@ -435,20 +438,15 @@ export class GameUi {
   }
 
   private showBattle(b: Battle) {
-    const last = b.rounds[b.rounds.length - 1];
-    const dice = (vals: number[], g: GangId) => vals.map((v) => `<span class="die" style="--c:${GANGS[g].color}">${v}</span>`).join('');
-    this.battleEl.innerHTML = `
-      ${b.ambushLoss ? `<div class="ambush-hit">⚡ AMBUSH! ${b.ambushLoss} attackers lost</div>` : ''}
-      <div class="vs"><div>${gname(b.gang)}<div class="dice">${last ? dice(last.att, b.gang) : ''}</div><div class="loss">−${b.attLoss}</div></div>
-      <div class="x">⚔</div>
-      <div>${gname(b.defender)}<div class="dice">${last ? dice(last.def, b.defender) : ''}</div><div class="loss">−${b.defLoss}</div></div></div>
-      <div class="where">${tname(b.from)} ⟶ ${tname(b.to)}${b.rounds.length > 1 ? ` · ${b.rounds.length} rounds` : ''}</div>
-      ${b.captured ? `<div class="taken">${tname(b.to)} captured!</div>` : ''}`;
-    this.battleEl.classList.add('show');
     clearTimeout(this.battleTimer);
-    // Your own battles stay up until your next action; computer battles fade on a timer.
-    if (b.gang === this.state.human) return;
-    this.battleTimer = window.setTimeout(() => this.battleEl.classList.remove('show'), this.fast ? 600 : 2200);
+    const mine = b.gang === this.state.human;
+    const pace = mine ? 'full' : this.fast ? 'instant' : 'last';
+    const side = (g: GangId) => ({ name: nm(g), color: GANGS[g].color });
+    this.battleView.play(b, side(b.gang), side(b.defender), pace, () => {
+      // Your own battles stay up until your next action; computer battles fade on a timer.
+      if (mine) return;
+      this.battleTimer = window.setTimeout(() => this.battleEl.classList.remove('show'), this.fast ? 500 : 1800);
+    });
   }
 
   private showWin(g: PlayerGang, reason: 'malls' | 'last') {
