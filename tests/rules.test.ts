@@ -134,3 +134,37 @@ describe('computer gangs', () => {
     expect(s.order.length === 1 || TERRITORIES.filter((t, i) => t.kind === 'mall' && s.owner[i] === w).length >= MALLS_TO_WIN).toBe(true);
   });
 });
+
+describe('undoing deployment', () => {
+  it('takes back placements and ambushes until the first attack', async () => {
+    const { Session } = await import('../src/game/session.ts');
+    const { session } = Session.start(adjacency, 'thorn', 3, 'Test Crew');
+    const s0 = () => session.state;
+    // Let computer gangs play until it's our turn.
+    while (!session.isHumanTurn) session.act(aiAction(s0()));
+    const reserves = s0().reserves;
+    const grange = T('grange');
+    const before = s0().members[grange];
+    session.act({ type: 'place', t: grange, n: 1 });
+    session.act({ type: 'ambush', t: T('orchard-boulevard') });
+    expect(session.undoCount).toBe(2);
+    session.undo();
+    expect(s0().ambush[T('orchard-boulevard')]).toBe(null);
+    session.undo();
+    expect(s0().members[grange]).toBe(before);
+    expect(s0().reserves).toBe(reserves);
+    expect(session.undoCount).toBe(0);
+
+    // "Done" can be undone too, but an attack locks everything in.
+    session.act({ type: 'place', t: grange, n: s0().reserves });
+    session.act({ type: 'endRecruit' });
+    expect(session.undoCount).toBe(2);
+    session.undo();
+    expect(s0().phase).toBe('recruit');
+    session.act({ type: 'endRecruit' });
+    const target = adjacency[grange].find((j) => s0().owner[j] !== 'thorn')!;
+    session.act({ type: 'attack', from: grange, to: target });
+    expect(session.undoCount).toBe(0);
+    expect(session.undo()).toBe(false);
+  });
+});

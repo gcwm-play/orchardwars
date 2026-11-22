@@ -33,7 +33,7 @@ button { font: inherit; color: inherit; }
 /* Territory badges */
 .labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
 .score, .info, .panel, .feed, .battle, .toast { z-index: 2; }
-.start, .win { z-index: 3; }
+.start, .win { z-index: 4; }
 .tl {
   position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer;
   display: flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; white-space: nowrap;
@@ -337,4 +337,69 @@ button { font: inherit; color: inherit; }
   .battle .pd { width: 26px; height: 26px; padding: 3px; }
   .battle .pair { grid-template-columns: 1fr 30px 16px 30px 1fr; gap: 6px; }
   .battle .b-rule { font-size: 10px; }
+}
+
+/* --- Undo, tap-to-dismiss, collapsible controls -------------------------------------- */
+.panel button.undo { color: #ffd34d; border-color: rgba(255, 211, 77, 0.45); }
+.battle { pointer-events: auto; cursor: pointer; }
+.viewctl .more { display: none; }
+.viewctl { z-index: 3; }
+
+/* --- Phones: keep the map clear ------------------------------------------------------ */
+@media (max-width: 640px) {
+  /* Scoreboard: one strip of chips (◆ strongholds, +recruits); current gang underlined. */
+  .score {
+    top: max(6px, env(safe-area-inset-top)); left: 6px; right: 6px; padding: 4px 6px;
+    display: flex; gap: 4px; justify-content: space-between; background: rgba(16, 12, 30, 0.7);
+  }
+  .score .round, .score .g.head, .score .gn, .score .st:nth-of-type(4) { display: none; }
+  .score .g { flex: 1; justify-content: center; gap: 4px; padding: 2px 2px 3px; border-left: 0; border-bottom: 2px solid transparent; font-size: 11px; }
+  .score .g.now { border-bottom-color: var(--c); }
+  .score .g.me .chip { outline: 1.5px solid #fff; outline-offset: 1px; }
+  .score .st { min-width: 0; }
+  .score .st.inc { min-width: 0; font-size: 11px; }
+
+  /* Map controls: a single "⋯" button under the strip; opens a row of controls. */
+  .viewctl { top: 44px; bottom: auto; right: 6px; flex-direction: column-reverse; align-items: flex-end; }
+  .viewctl .btns { display: flex; flex-direction: row-reverse; gap: 4px; grid-template-columns: none; }
+  .viewctl button { width: 34px; height: 34px; font-size: 15px; background: rgba(16, 12, 30, 0.65); }
+  .viewctl .more { display: block; }
+  .viewctl .btns > :not(.more) { display: none; }
+  .viewctl.open .btns > :not(.more) { display: block; }
+  .viewctl .compass { width: 34px; }
+  .viewctl .legend { display: none; }
+  .viewctl.open .legend { display: block; }
+  .viewctl .legend .lg-toggle { position: static; }
+  .viewctl .legend .lg-body { margin: 4px 0 0; max-width: calc(100vw - 20px); }
+
+  /* Info card: a slim peek under the strip that hides itself. */
+  .info { top: 44px; bottom: auto; left: 6px; right: 46px; max-width: none; padding: 6px 8px; font-size: 11px; }
+  .info .tn { font-size: 14px; }
+  .info .real + .real, .info .tag { display: none; }
+
+  /* Battle pop-up: compact, tap to close. */
+  .battle { top: 44px; left: 6px; transform: none; width: calc(100vw - 52px); padding: 6px 8px; }
+  .battle .b-head { margin-bottom: 4px; }
+  .battle .b-side span, .battle .b-rule { display: none; }
+  .battle .b-round { min-height: 0; gap: 3px; }
+  .battle .pd { width: 22px; height: 22px; padding: 2px; border-radius: 5px; }
+  .battle .pair { grid-template-columns: 1fr 24px 14px 24px 1fr; gap: 4px; }
+  .battle .res { font-size: 12px; }
+  .battle .spare .res { font-size: 9px; }
+  .battle .b-tally { margin-top: 4px; padding-top: 4px; font-size: 11px; }
+  .battle .b-tally b { font-size: 14px; }
+  .battle .ambush-hit { font-size: 11px; margin: 0 0 4px; }
+  .battle .taken, .battle .where { margin-top: 2px; font-size: 11px; }
+
+  /* Action panel: tighter. */
+  .panel { width: calc(100vw - 12px); bottom: max(6px, env(safe-area-inset-bottom)); padding: 6px 8px; }
+  .panel .steps { font-size: 9px; margin-bottom: 2px; }
+  .panel .phase { font-size: 12px; margin: 0 0 6px; }
+  .panel .big { font-size: 17px; }
+  .panel button { min-height: 34px; padding: 5px 10px; font-size: 13px; }
+  .panel .breakdown { font-size: 10px; margin-bottom: 6px; }
+  .panel .matchup { font-size: 12px; gap: 6px; margin-bottom: 6px; }
+  .panel .hint { font-size: 11px; }
+  .slider { margin-bottom: 6px; }
+  .toast { top: 30%; font-size: 14px; padding: 8px 12px; width: calc(100vw - 40px); }
 }

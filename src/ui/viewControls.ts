@@ -10,7 +10,7 @@ export class ViewControls {
     const box = document.createElement('div');
     box.className = 'viewctl';
     box.innerHTML = `
-      <div class="legend ${innerWidth < 640 ? '' : 'open'}">
+      <div class="legend">
         <button class="lg-toggle" data-v="legend" title="Map key">?</button>
         <div class="lg-body">
           <div><span class="lg mall"></span><b>Stronghold</b> (mall): pays <span class="inc">+N</span> members a turn, defends with 3 dice. Striped on the map.</div>
@@ -19,6 +19,7 @@ export class ViewControls {
         </div>
       </div>
       <div class="btns">
+        <button class="more" data-v="more" title="Map controls">⋯</button>
         <button class="compass" data-v="north" title="Point north up"><span class="needle">N</span></button>
         <button data-v="left" title="Turn map (Q)">⟲</button>
         <button data-v="right" title="Turn map (E)">⟳</button>
@@ -28,10 +29,21 @@ export class ViewControls {
       </div>`;
     root.appendChild(box);
     this.needle = box.querySelector('.needle')!;
+    // Phones: only the "⋯" button shows; it opens the rest for a few seconds.
+    let hide = 0;
+    const keepOpen = () => {
+      clearTimeout(hide);
+      hide = window.setTimeout(() => box.classList.remove('open'), 5000);
+    };
     box.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest('button');
       if (!b) return;
+      if (box.classList.contains('open')) keepOpen();
       switch (b.dataset.v) {
+        case 'more':
+          box.classList.toggle('open');
+          if (box.classList.contains('open')) keepOpen();
+          break;
         case 'left': view.rotate(-1); break;
         case 'right': view.rotate(1); break;
         case 'in': view.zoomBy(0.7); break;

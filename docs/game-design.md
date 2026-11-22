@@ -70,13 +70,17 @@ attacks, but the rich centre (Orchard, the Civic District, Marina) is heavily de
   tally counts each side's losses. A Blitz plays its rounds one after another. Your own battles stay on
   screen until your next action; computer battles show their final round and then fade.
 - The **scoreboard** shows every gang's strongholds, territories and recruits per turn.
-- **Map controls** (bottom right): rotate, zoom, north-up compass, whole-map view and a map key. Rotation
+- **On phones** the scoreboard is a single strip (◆ strongholds and +recruits per gang), the map controls
+  fold into one "⋯" button, the territory card is a brief peek, and battle pop-ups close on a tap.
+- **Map controls** (bottom right on desktop): rotate, zoom, north-up compass, whole-map view and a map key. Rotation
   also works with Q/E and a two-finger twist. Street names appear when you zoom in.
 
 ## A turn
 
 1. **Recruit.** New members = max(3, territories ÷ 3) + stronghold income + region bonuses (+ the
-   opening bonus on round 1). Place them on your turf.
+   opening bonus on round 1). Place them on your turf. **Undo** takes back placements, ambushes and "Done" one step
+   at a time, until your first attack of the turn. Deploying never touches the dice, so undo can't be
+   used to re-roll a fight.
    - **Ambush:** instead of placing, spend **2** members to hide an ambush on one of your street
      turfs (max 3 active). Only you can see it. The first rival who attacks that turf loses **3**
      attackers before any dice are rolled, and the ambush is used up.

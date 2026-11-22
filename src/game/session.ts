@@ -6,8 +6,16 @@ import { apply, newGame, type Action, type GameEvent, type GameState } from './r
 
 const SAVE_KEY = 'orchardwars-save-v1';
 
+/** Actions the player can take back: deploying members, ambushes, and finishing recruitment. */
+const UNDOABLE = new Set<Action['type']>(['place', 'ambush', 'endRecruit']);
+
 export class Session {
   private listeners: ((events: GameEvent[]) => void)[] = [];
+  /**
+   * Snapshots taken before each undoable action this turn. Cleared by the first attack (or any
+   * other action), so dice are never re-rolled: deploying doesn't touch the dice.
+   */
+  private undoStack: string[] = [];
 
   private constructor(public state: GameState) {}
 
@@ -50,10 +58,35 @@ export class Session {
   }
 
   act(action: Action): GameEvent[] {
+    const human = this.isHumanTurn;
+    const before = human && UNDOABLE.has(action.type) ? this.snapshot() : null;
     const events = apply(this.state, action);
+    if (before) this.undoStack.push(before);
+    else this.undoStack = [];
     this.save();
     for (const fn of this.listeners) fn(events);
     return events;
+  }
+
+  /** How many deployment steps can be taken back right now. */
+  get undoCount() {
+    return this.isHumanTurn ? this.undoStack.length : 0;
+  }
+
+  /** Take back the last deployment step (a placement, an ambush, or "Done"). */
+  undo(): boolean {
+    const snap = this.undoStack.pop();
+    if (!snap || !this.isHumanTurn) return false;
+    const adjacency = this.state.adjacency;
+    this.state = { ...(JSON.parse(snap) as GameState), adjacency };
+    this.save();
+    for (const fn of this.listeners) fn([]);
+    return true;
+  }
+
+  private snapshot() {
+    const { adjacency: _skip, ...rest } = this.state;
+    return JSON.stringify(rest);
   }
 
   private save() {

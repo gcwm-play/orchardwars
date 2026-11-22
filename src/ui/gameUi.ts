@@ -56,6 +56,7 @@ export class GameUi {
     this.info = this.el('div', 'info');
     this.panel = this.el('div', 'panel');
     this.battleEl = this.el('div', 'battle');
+    this.battleEl.addEventListener('click', () => this.battleEl.classList.remove('show'));
     this.battleView = new BattleView(this.battleEl);
     NAMES = session.state.names ?? {};
     session.onEvents((events) => this.onEvents(events));
@@ -172,6 +173,12 @@ export class GameUi {
           this.target = null;
           break;
         case 'cancel': this.selected = null; this.target = null; break;
+        case 'undo':
+          this.session.undo();
+          this.selected = null;
+          this.target = null;
+          this.ambushMode = false;
+          break;
         case 'endTurn':
           this.selected = null;
           this.target = null;
@@ -253,7 +260,7 @@ export class GameUi {
       }
     }
     if (owners) this.hooks.owners(s.owner);
-    if (this.infoT !== null) this.showInfo(this.infoT);
+    if (this.infoT !== null && this.info.classList.contains('show')) this.showInfo(this.infoT);
     this.refresh();
   }
 
@@ -329,6 +336,7 @@ export class GameUi {
         <div class="row">
           ${[1, 3, 0].map((n) => `<button data-act="amount" data-n="${n}" class="${this.amount === n ? 'on' : ''}">${n === 0 ? 'All' : `+${n}`}</button>`).join('')}
           <button data-act="ambush" class="${this.ambushMode ? 'on' : ''}" ${s.reserves < AMBUSH_COST || mine >= MAX_AMBUSHES ? 'disabled' : ''}>Ambush (${AMBUSH_COST})</button>
+          ${this.undoButton()}
           <button data-act="endRecruit" class="primary" ${s.reserves > 0 ? 'disabled' : ''}>Done</button>
         </div>`;
     }
@@ -353,7 +361,7 @@ export class GameUi {
           ${mall ? '' : '<div class="hint">Street turf: there may be a hidden ambush (−' + AMBUSH_STRIKE + ' attackers).</div>'}
           <div class="row"><button data-act="roll" class="primary">Attack</button><button data-act="blitz">Blitz</button><button data-act="cancel">Cancel</button></div>`;
       }
-      return `${head}${body}<div class="row"><button data-act="endAttack">Done attacking</button></div>`;
+      return `${head}${body}<div class="row">${this.undoButton('Undo deployment')}<button data-act="endAttack">Done attacking</button></div>`;
     }
 
     // Move phase.
@@ -413,6 +421,12 @@ export class GameUi {
     });
   }
 
+  /** Take back deployments until the first attack of the turn. */
+  private undoButton(label = 'Undo') {
+    const n = this.session.undoCount;
+    return n > 0 ? `<button data-act="undo" class="undo" title="Take back your last deployment (until you attack)">↶ ${label}</button>` : '';
+  }
+
   private slider(min: number, max: number) {
     const v = Math.min(max, Math.max(min, this.moveAmount || max));
     this.moveAmount = v;
@@ -420,6 +434,7 @@ export class GameUi {
   }
 
   private infoT: number | null = null;
+  private infoTimer = 0;
 
   private showInfo(t: number) {
     this.infoT = t;
@@ -435,6 +450,9 @@ export class GameUi {
       <div class="real">${esc(region.name)} region: +${region.bonus}/turn if you hold all of it</div>
       <div>${chip(owner)} ${gname(owner)} · <b>${s.members[t]}</b> members</div>${kind}${ambush}`;
     this.info.classList.add('show');
+    // On phones the card is a brief peek, so it doesn't sit over the map.
+    clearTimeout(this.infoTimer);
+    if (innerWidth < 640) this.infoTimer = window.setTimeout(() => this.info.classList.remove('show'), 3500);
   }
 
   private showBattle(b: Battle) {
