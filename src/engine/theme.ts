@@ -150,6 +150,46 @@ export const THEMES: Record<ThemeId, Theme> = {
 /** The theme in use, chosen once at start-up. */
 export let THEME: Theme = THEMES.neon;
 
+const THEME_KEY = 'orchardwars-theme';
+const RESUME_KEY = 'orchardwars-resume-once';
+
+/** The theme the player picked last time (remembered in this browser). */
+export function savedTheme(): string | null {
+  try {
+    return localStorage.getItem(THEME_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Switch theme. The city is built for one theme, so this reloads the page; the game is saved
+ * after every action, and the reload skips the title screen to continue it.
+ */
+export function switchTheme(id: ThemeId, resumeGame: boolean) {
+  try {
+    localStorage.setItem(THEME_KEY, id);
+    if (resumeGame) sessionStorage.setItem(RESUME_KEY, '1');
+  } catch {
+    /* storage blocked: fall back to the URL */
+  }
+  const url = new URL(location.href);
+  url.searchParams.delete('theme');
+  if (!savedTheme()) url.searchParams.set('theme', id);
+  location.replace(url.toString());
+}
+
+/** True once after a theme switch made mid-game, so the game continues without the title screen. */
+export function takeResumeFlag(): boolean {
+  try {
+    const v = sessionStorage.getItem(RESUME_KEY) === '1';
+    sessionStorage.removeItem(RESUME_KEY);
+    return v;
+  } catch {
+    return false;
+  }
+}
+
 export function setTheme(id: string | null) {
   THEME = (id && id in THEMES ? THEMES[id as ThemeId] : THEMES.neon);
   document.documentElement.dataset.theme = THEME.ui;

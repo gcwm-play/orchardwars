@@ -1,4 +1,5 @@
 import type { IsoCamera } from '../engine/isoCamera.ts';
+import { bindThemePicker, themePickerHtml } from './themePicker.ts';
 
 // On-screen map controls (rotate, zoom, reset), a compass that turns with the map, and a legend
 // for the map's symbols. The legend starts open on wide screens and folds away on phones.
@@ -20,8 +21,12 @@ export class ViewControls {
           <div><span class="cutmark">⊘</span> <b>Cut off</b>: no path through your turf to one of your strongholds. It can't be reinforced and attacks with 2 dice at most.</div>
         </div>
       </div>
+      <div class="look">
+        <div class="look-body"><div class="look-title">Look</div>${themePickerHtml()}</div>
+      </div>
       <div class="btns">
         <button class="more" data-v="more" title="Map controls">⋯</button>
+        <button class="lookbtn" data-v="look" title="Change the look">🎨</button>
         <button class="compass" data-v="north" title="Point north up"><span class="needle">N</span></button>
         <button data-v="left" title="Turn map (Q)">⟲</button>
         <button data-v="right" title="Turn map (E)">⟳</button>
@@ -31,11 +36,16 @@ export class ViewControls {
       </div>`;
     root.appendChild(box);
     this.needle = box.querySelector('.needle')!;
+    bindThemePicker(box.querySelector('.look')!, () => true);
     // Phones: only the "⋯" button shows; it opens the rest for a few seconds.
     let hide = 0;
     const keepOpen = () => {
       clearTimeout(hide);
-      hide = window.setTimeout(() => box.classList.remove('open'), 5000);
+      hide = window.setTimeout(() => {
+        // Stay open while the player is choosing a look.
+        if (box.querySelector('.look.open')) return keepOpen();
+        box.classList.remove('open');
+      }, 5000);
     };
     box.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest('button');
@@ -52,6 +62,7 @@ export class ViewControls {
         case 'out': view.zoomBy(1.4); break;
         case 'north': view.faceNorth(); break;
         case 'reset': reset(); break;
+        case 'look': box.querySelector('.look')!.classList.toggle('open'); break;
         case 'legend': box.querySelector('.legend')!.classList.toggle('open'); break;
       }
     });

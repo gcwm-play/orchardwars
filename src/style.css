@@ -486,3 +486,46 @@ button { font: inherit; color: inherit; }
 :root[data-theme='light'] .dice.def i { background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
 :root[data-theme='light'] .chip { box-shadow: none; }
 :root[data-theme='light'] .pd i.on { background: #1d1620; }
+
+/* --- Theme picker -------------------------------------------------------------------- */
+.themes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.theme {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px; cursor: pointer; text-align: left;
+  background: rgba(127, 127, 127, 0.08); border: 1px solid var(--line); border-radius: 6px;
+}
+.theme:hover { border-color: var(--muted); }
+.theme.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.theme.loading { opacity: 0.6; cursor: progress; }
+.theme .sw {
+  position: relative; display: block; width: 100%; height: 46px; border-radius: 4px; overflow: hidden;
+  background: var(--sky); margin-bottom: 4px;
+}
+.theme .sw::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 10px; background: var(--ground); }
+.theme .sw i {
+  position: absolute; bottom: 8px; width: 26%; background: var(--wall); border: 1px solid var(--ink);
+  border-top: 5px solid var(--roof);
+  background-image: radial-gradient(circle, var(--win) 1.4px, transparent 1.6px); background-size: 7px 7px;
+}
+.theme .sw .b1 { left: 18%; height: 30px; }
+.theme .sw .b2 { left: 52%; height: 22px; background-color: var(--wall2); }
+.theme .tname { font-weight: 700; font-size: 13px; }
+.theme .tblurb { font-size: 11px; color: var(--muted); }
+.start .look-h { margin-top: 18px; }
+
+.viewctl .look { display: none; }
+.viewctl .look.open { display: block; }
+.viewctl .look-body {
+  width: min(460px, calc(100vw - 20px)); padding: 8px; background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(6px);
+}
+.viewctl .look-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 6px; }
+.viewctl .lookbtn { font-size: 16px; }
+.viewctl .btns { grid-template-columns: repeat(2, 40px); }
+@media (max-width: 640px) {
+  .themes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .viewctl.open .look.open { display: block; }
+  .viewctl:not(.open) .look { display: none; }
+}
+.viewctl .theme { width: auto; height: auto; font-size: inherit; font-weight: 400; backdrop-filter: none; background: rgba(127, 127, 127, 0.08); }
+.viewctl .theme .tname { font-size: 12px; }
+.viewctl .theme .tblurb { font-size: 10px; }
+.viewctl .theme .sw { height: 34px; }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
 import { Stage } from './engine/stage.ts';
-import { setTheme } from './engine/theme.ts';
+import { savedTheme, setTheme, takeResumeFlag } from './engine/theme.ts';
 import { MapControls } from './engine/mapControls.ts';
 import { loadMap } from './world/mapData.ts';
 import { buildWorld } from './world/buildWorld.ts';
@@ -22,7 +22,7 @@ import { briefing } from './ui/briefing.ts';
 
 async function start() {
   // Pick the look before anything is built: ?theme=neon|daylight|golden|moonlit
-  setTheme(new URLSearchParams(location.search).get('theme'));
+  setTheme(new URLSearchParams(location.search).get('theme') ?? savedTheme());
   const root = document.getElementById('app')!;
   const canvas = document.createElement('canvas');
   root.appendChild(canvas);
@@ -87,7 +87,8 @@ async function start() {
   const saved = Session.load(territoryMap.adjacency);
   // ?gang= picks the corner directly (for testing); otherwise name your gang and draw a corner.
   const forced = qs.get('gang') as PlayerGang | null;
-  const choice = forced ? { name: qs.get('name') ?? '' } : await startScreen(root, saved !== null);
+  const resume = saved !== null && takeResumeFlag();
+  const choice = forced ? { name: qs.get('name') ?? '' } : resume ? ('resume' as const) : await startScreen(root, saved !== null);
   let session: Session;
   let events: GameEvent[] = [];
   let fresh = false;

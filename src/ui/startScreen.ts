@@ -1,5 +1,6 @@
 import { GANGS, MALLS_TO_WIN, PLAYER_GANGS, suggestGangName } from '../game/data.ts';
 import { AMBUSH_COST, AMBUSH_STRIKE } from '../game/rules.ts';
+import { bindThemePicker, themePickerHtml } from './themePicker.ts';
 
 // Title screen: name your gang (a suggestion is filled in) or continue a saved game.
 // Your corner of the city is drawn at random afterwards.
@@ -25,6 +26,8 @@ export function startScreen(root: HTMLElement, canResume: boolean): Promise<Star
           <p class="note">You'll be dropped into one corner of the city at random: ${corners}.</p>
           <button class="primary go" type="submit">Claim your turf</button>
         </form>
+        <h2 class="look-h">Look</h2>
+        ${themePickerHtml()}
         <details>
           <summary>How to play</summary>
           <ol>
@@ -47,8 +50,23 @@ export function startScreen(root: HTMLElement, canResume: boolean): Promise<Star
       </div>`;
     root.appendChild(el);
     const input = el.querySelector<HTMLInputElement>('#gang-name')!;
-    input.value = suggestGangName();
+    bindThemePicker(el.querySelector('.themes')!.parentElement!, () => false);
+    // Keep a typed name across the reload that a theme change causes.
+    let kept = '';
+    try {
+      kept = sessionStorage.getItem('orchardwars-name') ?? '';
+    } catch {
+      /* storage blocked */
+    }
+    input.value = kept || suggestGangName();
     input.placeholder = input.value;
+    input.addEventListener('input', () => {
+      try {
+        sessionStorage.setItem('orchardwars-name', input.value);
+      } catch {
+        /* storage blocked */
+      }
+    });
     el.querySelector('.reroll')!.addEventListener('click', () => {
       input.value = suggestGangName();
       input.focus();

@@ -79,6 +79,10 @@ attacks, but the rich centre (Orchard, the Civic District, Marina) is heavily de
   "Held by …", with both sides' losses). Moves get a paler arrow. When your turn comes, the camera flies
   back to your turf. **Following ✓** turns the camera moves off; if you pan or zoom yourself during their
   turn, the camera stops flying for the rest of it. Fast forward skips all of this.
+- **Looks**: four visual themes. **Neon dusk** (the original), **Daylight cel** (pastel anime afternoon),
+  **Golden hour** (sunset) and **Moonlit cel** (calm night with ink lines). Pick one on the title screen, or
+  mid-game with the 🎨 button in the map controls. The choice is remembered in the browser; switching
+  mid-game reloads the page and continues the same game.
 - **On phones** the scoreboard is a single strip (◆ strongholds and +recruits per gang), the map controls
   fold into one "⋯" button, the territory card is a brief peek, and battle pop-ups close on a tap.
 - **Map controls** (bottom right on desktop): rotate, zoom, north-up compass, whole-map view and a map key. Rotation
