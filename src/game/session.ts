@@ -7,9 +7,37 @@ import { apply, newGame, type Action, type GameEvent, type GameState } from './r
 const SAVE_KEY = 'orchardwars-save-v1';
 
 /** Actions the player can take back: deploying members, ambushes, and finishing recruitment. */
-const UNDOABLE = new Set<Action['type']>(['place', 'ambush', 'endRecruit']);
+export const UNDOABLE = new Set<Action['type']>(['place', 'ambush', 'endRecruit']);
 
-export class Session {
+/** Multiplayer details the UI shows (room code, players, timer). Absent in single player. */
+export interface NetView {
+  code: string;
+  role: 'host' | 'client';
+  seats: { name: string; gang: PlayerGang | null; connected: boolean; host: boolean; covered: boolean }[];
+  /** Milliseconds left in the current human turn, or null without a timer. */
+  remaining(): number | null;
+  status: string;
+  /** The host has gone quiet and this player could take over. */
+  canTakeOver: boolean;
+  takeOver(): void;
+  leave(): void;
+}
+
+/** What the game UI needs from a running game, local or online. */
+export interface GameSession {
+  readonly state: GameState;
+  /** Is it this player's turn? */
+  readonly isHumanTurn: boolean;
+  /** Should this browser play the computer gangs' moves right now? */
+  readonly runsAi: boolean;
+  readonly undoCount: number;
+  act(action: Action): void;
+  undo(): void;
+  onEvents(fn: (events: GameEvent[]) => void): void;
+  readonly net?: NetView;
+}
+
+export class Session implements GameSession {
   private listeners: ((events: GameEvent[]) => void)[] = [];
   /**
    * Snapshots taken before each undoable action this turn. Cleared by the first attack (or any
@@ -51,6 +79,10 @@ export class Session {
 
   get isHumanTurn() {
     return this.state.phase !== 'over' && this.state.current === this.state.human;
+  }
+
+  get runsAi() {
+    return this.state.phase !== 'over' && !this.isHumanTurn;
   }
 
   onEvents(fn: (events: GameEvent[]) => void) {

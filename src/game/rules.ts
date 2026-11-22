@@ -27,6 +27,8 @@ export interface GameState {
   human: PlayerGang | null;
   /** Custom gang names (the player's own team name), by gang. */
   names?: Partial<Record<GangId, string>>;
+  /** Online games: the gangs people play (the rest are the computer). */
+  humans?: PlayerGang[];
   phase: Phase;
   owner: GangId[];
   members: number[];

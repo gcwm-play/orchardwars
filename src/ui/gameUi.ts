@@ -6,7 +6,7 @@ import {
 } from '../game/rules.ts';
 import { aiAction } from '../game/ai.ts';
 import { attackDice, blitzOdds, defenceDice } from '../game/odds.ts';
-import type { Session } from '../game/session.ts';
+import type { GameSession } from '../game/session.ts';
 import { BattleView } from './battleView.ts';
 
 // Everything on screen around the map: scoreboard, the action panel for each phase,
@@ -44,6 +44,10 @@ const tname = (t: number) => `<b>${esc(TERRITORIES[t].name)}</b>`;
 const diceChip = (n: number, kind: 'att' | 'def') =>
   n > 0 ? `<span class="dice ${kind}" title="${kind === 'att' ? 'Attacks' : 'Defends'} with ${n} ${n === 1 ? 'die' : 'dice'}">${'<i></i>'.repeat(n)}</span>` : '';
 const isMallT = (t: number) => TERRITORIES[t].kind === 'mall';
+const fmtClock = (ms: number) => {
+  const t = Math.ceil(ms / 1000);
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+};
 
 export class GameUi {
   selected: number | null = null;
@@ -63,7 +67,7 @@ export class GameUi {
   private battleTimer = 0;
   private readonly battleView: BattleView;
 
-  constructor(private readonly root: HTMLElement, private readonly session: Session, private readonly hooks: UiHooks) {
+  constructor(private readonly root: HTMLElement, private readonly session: GameSession, private readonly hooks: UiHooks) {
     this.score = this.el('div', 'score');
     this.feed = this.el('div', 'feed');
     this.info = this.el('div', 'info');
@@ -227,6 +231,7 @@ export class GameUi {
           break;
         case 'fast': this.fast = !this.fast; break;
         case 'follow': this.follow = !this.follow; break;
+        case 'takeover': this.session.net?.takeOver(); break;
         case 'menu': location.reload(); break;
       }
     } catch (err) {
@@ -252,10 +257,16 @@ export class GameUi {
    * follow them: the camera flies over, an arrow is drawn, then the dice roll, then a pause.
    */
   private scheduleAi(delay?: number) {
-    clearTimeout(this.aiTimer);
+    if (this.aiPending) return;
     const s = this.state;
-    if (s.phase === 'over' || this.session.isHumanTurn) return;
+    if (s.phase === 'over' || !this.session.runsAi) return;
+    this.aiPending = true;
     this.aiTimer = window.setTimeout(() => {
+      // Things may have changed while waiting (e.g. a dropped player came back online).
+      if (!this.session.runsAi) {
+        this.aiPending = false;
+        return;
+      }
       const action = aiAction(this.state);
       const gang = this.state.current;
       const watching = this.follow && !this.fast;
@@ -265,18 +276,29 @@ export class GameUi {
         if (!d.userMovedSince(this.aiTurnStart)) d.frame([action.from, action.to], true);
         d.arrow(action.from, action.to, gang, action.type);
         this.aiTimer = window.setTimeout(() => {
+          this.aiPending = false;
+          if (!this.session.runsAi || this.state.current !== gang) return this.scheduleAi();
+          this.staged = true;
           this.session.act(action);
+          this.staged = false;
           this.refresh();
           this.scheduleAi(action.type === 'attack' ? 2400 : 1000);
         }, action.type === 'attack' ? 1100 : 700);
         return;
       }
+      this.aiPending = false;
       if (action.type === 'endTurn') this.hooks.director.fadeArrows();
       this.session.act(action);
       this.refresh();
       this.scheduleAi();
     }, delay ?? (this.fast ? 90 : 420));
   }
+
+  /** A computer move is in the pipeline (so new events don't start a second one). */
+  private aiPending = false;
+  /** The current move was already shown with an arrow before it happened. */
+  private staged = false;
+  private lastOwners = '';
 
   /** When the current computer turn started (to tell if the player has moved the map since). */
   private aiTurnStart = 0;
@@ -285,7 +307,17 @@ export class GameUi {
 
   private onEvents(events: GameEvent[]) {
     const s = this.state;
+    NAMES = s.names ?? {}; // online: players can join mid-game and take over a gang
     let owners = false;
+    const d = this.hooks.director;
+    // Moves by other people (online) or computer moves played elsewhere get the same arrow and
+    // camera treatment as computer moves staged here.
+    const showMove = (from: number, to: number, gang: GangId, kind: 'attack' | 'move') => {
+      if (this.staged || gang === s.human || !this.follow || this.fast) return;
+      d.fadeArrows();
+      if (!d.userMovedSince(this.aiTurnStart)) d.frame([from, to], true);
+      d.arrow(from, to, gang, kind);
+    };
     for (const e of events) {
       switch (e.type) {
         case 'turn': {
@@ -314,6 +346,7 @@ export class GameUi {
           if (e.gang === s.human) this.log(`You hid an ambush in ${tname(e.t)}.`);
           break;
         case 'battle':
+          showMove(e.from, e.to, e.gang, 'attack');
           this.showBattle(e);
           this.aftermath(e);
           this.hooks.pulse(e.to, 0.6);
@@ -333,16 +366,25 @@ export class GameUi {
           break;
         case 'moved':
           if (e.gang === s.human) this.log(`Moved ${e.n} from ${tname(e.from)} to ${tname(e.to)}.`);
-          else if (this.follow && !this.fast) this.hooks.director.tag(e.to, `+${e.n} moved in`, GANGS[e.gang].color);
+          else if (this.follow && !this.fast) {
+            showMove(e.from, e.to, e.gang, 'move');
+            this.hooks.director.tag(e.to, `+${e.n} moved in`, GANGS[e.gang].color);
+          }
           break;
         case 'win':
           this.showWin(e.gang, e.reason);
           break;
       }
     }
-    if (owners) this.hooks.owners(s.owner);
+    // Recolour the city whenever ownership changed (online, a whole new board can arrive at once).
+    const ownersKey = s.owner.join();
+    if (owners || ownersKey !== this.lastOwners) {
+      this.lastOwners = ownersKey;
+      this.hooks.owners(s.owner);
+    }
     if (this.infoT !== null && this.info.classList.contains('show')) this.showInfo(this.infoT);
     this.refresh();
+    this.scheduleAi();
   }
 
   // --- Drawing ----------------------------------------------------------------------
@@ -350,6 +392,10 @@ export class GameUi {
   refresh() {
     const s = this.state;
     const me = s.human;
+    // Online, the board can change under a selection: drop picks that no longer make sense.
+    if (this.selected !== null && (s.owner[this.selected] !== me || !this.session.isHumanTurn)) this.selected = null;
+    if (this.target !== null && this.selected === null) this.target = null;
+    if (this.target !== null && s.phase === 'attack' && !canAttack(s, this.selected!, this.target)) this.target = null;
     // Valid targets for the current selection.
     let targets: number[] = [];
     if (this.session.isHumanTurn && this.selected !== null) {
@@ -365,6 +411,7 @@ export class GameUi {
 
     // Scoreboard.
     const scoreHtml =
+      this.netLine() +
       `<div class="round">Round ${s.round} · first to ${MALLS_TO_WIN} ◆</div>` +
       `<div class="g head"><span class="chip" style="--c:transparent"></span><span class="gn"></span><span class="st">◆</span><span class="st">▦</span><span class="st inc">/turn</span></div>` +
       PLAYER_GANGS.map((g) => {
@@ -374,7 +421,7 @@ export class GameUi {
         const r = recruitsFor(s, g);
         const income = alive ? r.total - r.firstTurn : 0;
         const cls = ['g', g === s.current ? 'now' : '', alive ? '' : 'dead', g === me ? 'me' : ''].join(' ');
-        return `<div class="${cls}" style="--c:${GANGS[g].color}">${chip(g)}<span class="gn">${esc(nm(g))}${g === me ? ' (you)' : ''}</span>
+        return `<div class="${cls}" style="--c:${GANGS[g].color}">${chip(g)}<span class="gn">${esc(nm(g))}${g === me ? ' (you)' : ''}${this.seatTag(g)}</span>
           <span class="st" title="Strongholds held">◆ ${malls}</span><span class="st" title="Territories held">▦ ${terr}</span>
           <span class="st inc" title="Members recruited per turn at current holdings">+${income}</span></div>`;
       }).join('');
@@ -394,8 +441,16 @@ export class GameUi {
     const s = this.state;
     if (s.phase === 'over') return `<div class="row"><button data-act="menu" class="primary">New game</button></div>`;
     if (!this.session.isHumanTurn) {
-      return `<div class="phase">${chip(s.current)} ${gname(s.current)} is making moves…</div>
-        <div class="row"><button data-act="fast" class="${this.fast ? 'on' : ''}">${this.fast ? 'Fast ✓' : 'Fast forward'}</button>
+      const net = this.session.net;
+      const seat = net?.seats.find((x) => x.gang === s.current);
+      const person = seat && !seat.covered;
+      const clock = net?.remaining();
+      const what = person
+        ? `${chip(s.current)} ${seat.name === nm(s.current) ? gname(s.current) : `<b>${esc(seat.name)}</b> (${gname(s.current)})`} is taking their turn${clock != null ? ` · <span class="clock">${fmtClock(clock)}</span>` : ''}`
+        : `${chip(s.current)} ${gname(s.current)} is making moves…${seat ? ' <span class="muted">(computer standing in)</span>' : ''}`;
+      const fastBtn = this.session.runsAi ? `<button data-act="fast" class="${this.fast ? 'on' : ''}">${this.fast ? 'Fast ✓' : 'Fast forward'}</button>` : '';
+      return `<div class="phase">${what}</div>${this.netActions()}
+        <div class="row">${fastBtn}
         <button data-act="follow" class="${this.follow ? 'on' : ''}" title="Fly the camera to their attacks">${this.follow ? 'Following ✓' : 'Follow camera'}</button></div>`;
     }
     const steps = (['recruit', 'attack', 'move'] as const)
@@ -507,6 +562,39 @@ export class GameUi {
       }
       return html;
     });
+  }
+
+  /** Online: room code, your turn clock, and connection notes. */
+  private netLine(): string {
+    const net = this.session.net;
+    if (!net) return '';
+    const clock = this.session.isHumanTurn ? net.remaining() : null;
+    return `<div class="netline"><span class="room" title="Room code: friends join with it">Room ${esc(net.code)}</span>
+      ${net.role === 'host' ? '<span class="muted">you host</span>' : ''}
+      ${clock != null ? `<span class="clock ${clock < 30000 ? 'low' : ''}">Your turn ${fmtClock(clock)}</span>` : ''}</div>`;
+  }
+
+  /** Online: who plays each gang. */
+  private seatTag(g: GangId): string {
+    const net = this.session.net;
+    if (!net) return '';
+    const seat = net.seats.find((x) => x.gang === g);
+    if (!seat) return ' <span class="who">computer</span>';
+    if (g === this.state.human) return '';
+    const who = seat.name === nm(g) ? '' : `${esc(seat.name)} · `;
+    if (!seat.connected) return ` <span class="who off">${who}offline${seat.covered ? ', computer playing' : ''}</span>`;
+    return who ? ` <span class="who">${who.slice(0, -3)}</span>` : ` <span class="who">player</span>`;
+  }
+
+  /** Online: take over a host who has gone quiet, and leave the room. */
+  private netActions(): string {
+    const net = this.session.net;
+    if (!net) return '';
+    return `${net.status ? `<div class="hint">${esc(net.status)}</div>` : ''}${
+      net.canTakeOver
+        ? `<div class="hint warn">The host's game has gone quiet. Take over to keep playing; your browser becomes the referee.</div>
+           <div class="row"><button data-act="takeover" class="primary">Take over as host</button></div>`
+        : ''}`;
   }
 
   /** Take back deployments until the first attack of the turn. */

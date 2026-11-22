@@ -6,7 +6,7 @@ import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-execSync('npx vite build', { stdio: 'inherit' });
+execSync('npx vite build', { stdio: 'inherit', env: { ...process.env, OW_SINGLE_FILE: '1' } });
 
 const dist = 'dist';
 let html = readFileSync(join(dist, 'index.html'), 'utf8');

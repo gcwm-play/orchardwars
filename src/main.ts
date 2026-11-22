@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
 import { Stage } from './engine/stage.ts';
-import { savedTheme, setTheme, takeResumeFlag } from './engine/theme.ts';
+import { savedTheme, setResumeTarget, setTheme, takeResumeFlag } from './engine/theme.ts';
 import { MapControls } from './engine/mapControls.ts';
 import { loadMap } from './world/mapData.ts';
 import { buildWorld } from './world/buildWorld.ts';
@@ -12,7 +12,11 @@ import { CollisionGrid } from './game/collision.ts';
 import { Session } from './game/session.ts';
 import { GameUi } from './ui/gameUi.ts';
 import { Labels, RegionLabels, StreetNames } from './ui/labels.ts';
-import { startScreen } from './ui/startScreen.ts';
+import { startScreen, type StartChoice } from './ui/startScreen.ts';
+import { lobby } from './ui/lobby.ts';
+import { NetSession, netPlayer } from './net/netSession.ts';
+import { roomStore } from './net/store.ts';
+import type { GameSession } from './game/session.ts';
 import { ViewControls } from './ui/viewControls.ts';
 import type { GameEvent } from './game/rules.ts';
 import { GANGS, PLAYER_GANGS, type PlayerGang } from './game/data.ts';
@@ -87,17 +91,43 @@ async function start() {
   const saved = Session.load(territoryMap.adjacency);
   // ?gang= picks the corner directly (for testing); otherwise name your gang and draw a corner.
   const forced = qs.get('gang') as PlayerGang | null;
-  const resume = saved !== null && takeResumeFlag();
-  const choice = forced ? { name: qs.get('name') ?? '' } : resume ? ('resume' as const) : await startScreen(root, saved !== null);
-  let session: Session;
+  const resume = takeResumeFlag();
+  let session: GameSession | null = null;
   let events: GameEvent[] = [];
   let fresh = false;
-  if (choice === 'resume' && saved) session = saved;
-  else {
-    const name = choice === 'resume' ? '' : choice.name;
-    const corner = forced ?? PLAYER_GANGS[Math.floor(Math.random() * PLAYER_GANGS.length)];
-    ({ session, events } = Session.start(territoryMap.adjacency, corner, Number(qs.get('seed') ?? Date.now()), name || undefined));
-    fresh = !forced || qs.has('brief');
+  let error = '';
+  while (!session) {
+    const choice: StartChoice = forced
+      ? { name: qs.get('name') ?? '' }
+      : resume === 'local' && saved && !error
+        ? 'resume'
+        : resume?.startsWith('room:') && !error
+          ? { online: 'join', name: netPlayer().name, code: resume.slice(5) }
+          : await startScreen(root, saved !== null, { room: qs.get('room'), error });
+    if (choice === 'resume' && saved) {
+      session = saved;
+    } else if (choice !== 'resume' && 'online' in choice) {
+      // Online: the room screen, then the game once the host starts it.
+      try {
+        const store = await roomStore();
+        const net = choice.online === 'host'
+          ? await NetSession.host(store, territoryMap.adjacency, choice.name)
+          : await NetSession.join(store, territoryMap.adjacency, choice.code, choice.name);
+        await lobby(root, net);
+        session = net;
+        setResumeTarget(`room:${net.code}`);
+        fresh = !!net.state.human && net.state.round === 1 && !resume;
+      } catch (e) {
+        error = friendlyNetError(e as Error);
+      }
+    } else {
+      const name = choice === 'resume' ? '' : choice.name;
+      const corner = forced ?? PLAYER_GANGS[Math.floor(Math.random() * PLAYER_GANGS.length)];
+      const local = Session.start(territoryMap.adjacency, corner, Number(qs.get('seed') ?? Date.now()), name || undefined);
+      session = local.session;
+      events = local.events;
+      fresh = !forced || qs.has('brief');
+    }
   }
 
   // Clicks: try the buildings first (strongholds stand tall), then the ground.
@@ -138,9 +168,9 @@ async function start() {
     stage.view.zoomBy(homeZoom / stage.view.viewHalfHeight);
     stage.view.resetAngle();
   });
-  if (fresh) {
+  if (fresh && session.state.human) {
     // Fly to the new corner while the briefing is up, then start play.
-    const me = session.state.human!;
+    const me = session.state.human;
     const mine = session.state.owner.map((o, i) => (o === me ? i : -1)).filter((i) => i >= 0);
     const cx = mine.reduce((a, t) => a + anchors[t][0], 0) / mine.length;
     const cz = mine.reduce((a, t) => a + anchors[t][1], 0) / mine.length;
@@ -150,6 +180,14 @@ async function start() {
   }
   gameUi.begin(events);
   (window as unknown as { game: unknown }).game = { stage, session, ui: gameUi, turf };
+}
+
+/** Turn Firebase and network errors into something a player can act on. */
+function friendlyNetError(e: Error): string {
+  const m = e.message || String(e);
+  if (/permission|insufficient/i.test(m)) return 'The online server refused the connection (Firestore rules). The game owner needs to allow the "orchardwars" collection; see docs/multiplayer.md.';
+  if (/offline|network|fetch|unavailable/i.test(m)) return 'Could not reach the online server. Check your internet connection and try again.';
+  return m;
 }
 
 start().catch((err) => {

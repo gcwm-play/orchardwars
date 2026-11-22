@@ -1,13 +1,18 @@
 import { GANGS, MALLS_TO_WIN, PLAYER_GANGS, suggestGangName } from '../game/data.ts';
 import { AMBUSH_COST, AMBUSH_STRIKE } from '../game/rules.ts';
 import { bindThemePicker, themePickerHtml } from './themePicker.ts';
+import { lastRoom } from '../net/netSession.ts';
 
 // Title screen: name your gang (a suggestion is filled in) or continue a saved game.
 // Your corner of the city is drawn at random afterwards.
 
-export type StartChoice = { name: string } | 'resume';
+export type StartChoice =
+  | { name: string }
+  | 'resume'
+  | { online: 'host'; name: string }
+  | { online: 'join'; name: string; code: string };
 
-export function startScreen(root: HTMLElement, canResume: boolean): Promise<StartChoice> {
+export function startScreen(root: HTMLElement, canResume: boolean, opts: { room?: string | null; error?: string } = {}): Promise<StartChoice> {
   return new Promise((resolve) => {
     const el = document.createElement('div');
     el.className = 'start';
@@ -26,6 +31,17 @@ export function startScreen(root: HTMLElement, canResume: boolean): Promise<Star
           <p class="note">You'll be dropped into one corner of the city at random: ${corners}.</p>
           <button class="primary go" type="submit">Claim your turf</button>
         </form>
+        <h2 class="look-h">Play online with friends</h2>
+        <div class="online">
+          <button type="button" class="host-btn">Host a game</button>
+          <div class="join-row">
+            <input class="join-code" maxlength="8" placeholder="Room code" autocomplete="off" spellcheck="false" aria-label="Room code" />
+            <button type="button" class="join-btn">Join</button>
+          </div>
+          ${lastRoom() ? `<button type="button" class="rejoin-btn" data-code="${lastRoom()}">Rejoin room ${lastRoom()}</button>` : ''}
+        </div>
+        <p class="note">Up to 4 players. Your gang name above is your name in the room. Empty corners are played by the computer.</p>
+        <p class="note err" ${opts.error ? '' : 'hidden'}>${opts.error ?? ''}</p>
         <h2 class="look-h">Look</h2>
         ${themePickerHtml()}
         <details>
@@ -75,6 +91,32 @@ export function startScreen(root: HTMLElement, canResume: boolean): Promise<Star
       el.remove();
       resolve('resume');
     });
+    const nameNow = () => input.value.trim().replace(/\s+/g, ' ').slice(0, 24) || input.placeholder;
+    el.querySelector('.host-btn')!.addEventListener('click', () => {
+      el.remove();
+      resolve({ online: 'host', name: nameNow() });
+    });
+    const join = (code: string) => {
+      const c = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (c.length < 4) {
+        const err = el.querySelector<HTMLElement>('.err')!;
+        err.hidden = false;
+        err.textContent = 'Type the room code the host gave you.';
+        return;
+      }
+      el.remove();
+      resolve({ online: 'join', name: nameNow(), code: c });
+    };
+    if (opts.room) {
+      const box = el.querySelector<HTMLInputElement>('.join-code')!;
+      box.value = opts.room;
+      el.querySelector('.online')!.scrollIntoView({ block: 'center' });
+    }
+    el.querySelector('.join-btn')!.addEventListener('click', () => join(el.querySelector<HTMLInputElement>('.join-code')!.value));
+    el.querySelector('.join-code')!.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter') join((e.target as HTMLInputElement).value);
+    });
+    el.querySelector<HTMLElement>('.rejoin-btn')?.addEventListener('click', (e) => join((e.currentTarget as HTMLElement).dataset.code!));
     el.querySelector('form')!.addEventListener('submit', (e) => {
       e.preventDefault();
       const name = input.value.trim().replace(/\s+/g, ' ').slice(0, 24) || input.placeholder;

@@ -149,6 +149,13 @@ without touching the rules:
 
 Turn timers, lobbies and async (play-by-notification) games fit on top of the same model.
 
+## Online play
+
+Up to 4 friends play together online: one hosts a room, the others join with its 5-letter code (or an
+invite link). Corners are drawn at random, and empty ones go to the computer. The room has an optional
+turn timer and a setting for what happens when someone drops out. Details and the one-time Firebase
+setup: [multiplayer.md](multiplayer.md).
+
 ## Ideas not built yet
 
 - Intel cards (Risk's cards): earned by capturing in a turn, traded for recruits or one-off tricks
@@ -156,4 +163,3 @@ Turn timers, lobbies and async (play-by-notification) games fit on top of the sa
 - Fog of war: see member counts only next to your own turf.
 - Events: MRT breakdowns that cut links for a round, a monsoon flooding the quays.
 - Gang abilities: e.g. River Tide moves along the river, Chrome Kampong ambushes cheaper.
-- Online multiplayer, as above.

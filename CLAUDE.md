@@ -25,6 +25,9 @@ Rules and balance: docs/game-design.md.
   must stay smooth on mid-range phones.
 - Game rules live only in `src/game/rules.ts` and change state only through `apply(state, action)`, so
   they stay testable and ready for online play. No DOM or three.js there.
+- Online play: `src/net/` (see docs/multiplayer.md). The host's browser is the referee; players send intents.
+  The UI only uses the `GameSession` interface, so keep single-player and online behaviour behind it. Test
+  online flows with two tabs on `?net=local&profile=a` / `profile=b` (no Firebase needed).
 - Visual looks live in `src/engine/theme.ts` (neon, daylight, golden, moonlit). Use `THEME.*` for any colour,
   glow or light; don't hard-code colours in world or shader code. A theme is applied at start-up, so
   switching reloads the page (the game resumes from its save). `?theme=` previews one.

@@ -20,6 +20,9 @@ arrow keys to pan. Rotate and zoom also have on-screen buttons. Tap a territory 
 get dropped into a random corner, and play against three computer gangs. The game saves itself in the
 browser. Pick a look (neon, daylight, golden hour, moonlit) on the title screen or with 🎨 in game.
 
+**Online:** choose **Host a game** on the title screen and send friends the room code, or **Join** with
+one. See [docs/multiplayer.md](docs/multiplayer.md) for how it works and the one-time Firebase setup.
+
 ## Scripts
 
 | Command | What it does |

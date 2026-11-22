@@ -166,10 +166,16 @@ export function savedTheme(): string | null {
  * Switch theme. The city is built for one theme, so this reloads the page; the game is saved
  * after every action, and the reload skips the title screen to continue it.
  */
+/** What a theme switch should come back to: the local game, or an online room ("room:CODE"). */
+let resumeTarget = 'local';
+export function setResumeTarget(target: string) {
+  resumeTarget = target;
+}
+
 export function switchTheme(id: ThemeId, resumeGame: boolean) {
   try {
     localStorage.setItem(THEME_KEY, id);
-    if (resumeGame) sessionStorage.setItem(RESUME_KEY, '1');
+    if (resumeGame) sessionStorage.setItem(RESUME_KEY, resumeTarget);
   } catch {
     /* storage blocked: fall back to the URL */
   }
@@ -179,14 +185,17 @@ export function switchTheme(id: ThemeId, resumeGame: boolean) {
   location.replace(url.toString());
 }
 
-/** True once after a theme switch made mid-game, so the game continues without the title screen. */
-export function takeResumeFlag(): boolean {
+/**
+ * Once after a theme switch made mid-game: what to continue ("local" or "room:CODE"), so the game
+ * carries on without the title screen. Null otherwise.
+ */
+export function takeResumeFlag(): string | null {
   try {
-    const v = sessionStorage.getItem(RESUME_KEY) === '1';
+    const v = sessionStorage.getItem(RESUME_KEY);
     sessionStorage.removeItem(RESUME_KEY);
-    return v;
+    return v === '1' ? 'local' : v;
   } catch {
-    return false;
+    return null;
   }
 }
 
