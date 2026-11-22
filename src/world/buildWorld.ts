@@ -6,20 +6,44 @@ import { signedArea, reversePoints } from './polygon.ts';
 import { TERRITORIES } from '../game/data.ts';
 import type { CollisionGrid } from '../game/collision.ts';
 import { TURF_GLSL, withTurf, type Turf } from './turf.ts';
+import { THEME, glslColor } from '../engine/theme.ts';
 
 // Builds the 3D city from map data. Everything of one kind is merged into a single
 // mesh (one draw call), so thousands of buildings stay cheap on phones. Turf colours
 // come from the Turf textures, so captures recolour the city without rebuilding it.
 
-const ROAD_STYLE: Record<RoadKind, { y: number; color: number }> = {
-  foot: { y: 0.1, color: 0x4a4658 },
-  pedestrian: { y: 0.12, color: 0x5a5368 },
-  service: { y: 0.14, color: 0x24222c },
-  minor: { y: 0.16, color: 0x1f1d26 },
-  secondary: { y: 0.18, color: 0x1c1a23 },
-  primary: { y: 0.2, color: 0x1a1820 },
-  major: { y: 0.22, color: 0x18161d },
+const roadStyle = (): Record<RoadKind, { y: number; color: string }> => {
+  const r = THEME.roads;
+  return {
+    foot: { y: 0.1, color: r.foot },
+    pedestrian: { y: 0.12, color: r.pedestrian },
+    service: { y: 0.14, color: r.service },
+    minor: { y: 0.16, color: r.minor },
+    secondary: { y: 0.18, color: r.minor },
+    primary: { y: 0.2, color: r.major },
+    major: { y: 0.22, color: r.major },
+  };
 };
+
+/** Three-step lighting ramp for cel shading. */
+let toonRamp: THREE.DataTexture | null = null;
+function ramp() {
+  if (!toonRamp) {
+    toonRamp = new THREE.DataTexture(new Uint8Array([95, 95, 95, 255, 175, 175, 175, 255, 255, 255, 255, 255]), 3, 1, THREE.RGBAFormat);
+    toonRamp.magFilter = toonRamp.minFilter = THREE.NearestFilter;
+    toonRamp.needsUpdate = true;
+  }
+  return toonRamp;
+}
+
+/** A lit surface material: cel-shaded (toon) or physically based, depending on the theme. */
+function surface(opts: { color?: THREE.ColorRepresentation; vertexColors?: boolean; roughness?: number; metalness?: number; flatShading?: boolean; emissive?: THREE.ColorRepresentation }): THREE.MeshStandardMaterial | THREE.MeshToonMaterial {
+  if (THEME.toon) {
+    const { roughness: _r, metalness: _m, ...rest } = opts;
+    return new THREE.MeshToonMaterial({ ...rest, gradientMap: ramp() });
+  }
+  return new THREE.MeshStandardMaterial(opts);
+}
 
 /** Tiny deterministic random number generator, so the city looks the same every load. */
 export function rng(seed: number) {
@@ -40,7 +64,7 @@ export interface World {
 }
 
 /** Ground-level tint: how strongly the owner's colour shows on each surface. */
-const tint = (amount: number) => `@@totalEmissiveRadiance += turfGround(diffuseColor.rgb, ${amount.toFixed(2)});`;
+const tint = (amount: number) => `@@totalEmissiveRadiance += turfGround(diffuseColor.rgb, ${(amount * THEME.turf.tint).toFixed(3)});`;
 
 export function buildWorld(map: MapData, grid: CollisionGrid, turf: Turf): World {
   const group = new THREE.Group();
@@ -52,19 +76,19 @@ export function buildWorld(map: MapData, grid: CollisionGrid, turf: Turf): World
   const gd = rect.maxZ - rect.minZ + 1200;
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(gw, gd).rotateX(-Math.PI / 2),
-    withTurf(new THREE.MeshStandardMaterial({ color: 0x2e2b38, roughness: 0.95 }), turf, tint(0.4)),
+    withTurf(surface({ color: THEME.ground, roughness: 0.95 }), turf, tint(0.4)),
   );
   ground.position.set((rect.minX + rect.maxX) / 2, 0, (rect.minZ + rect.maxZ) / 2);
   ground.receiveShadow = true;
   group.add(ground);
 
-  group.add(flatAreas(map.parks, 0.05, withTurf(new THREE.MeshStandardMaterial({ color: 0x2c5a3c, roughness: 1 }), turf, tint(0.2))));
+  group.add(flatAreas(map.parks, 0.05, withTurf(surface({ color: THEME.park, roughness: 1 }), turf, tint(0.2))));
 
   const waterMat = new THREE.MeshStandardMaterial({
-    color: 0x0d4a66,
-    emissive: 0x06243a,
+    color: THEME.water.color,
+    emissive: THEME.water.emissive,
     roughness: 0.12,
-    metalness: 0.4,
+    metalness: THEME.toon ? 0.1 : 0.4,
   });
   const water = flatAreas(map.water, 0.08, waterMat);
   water.receiveShadow = false;
@@ -72,7 +96,9 @@ export function buildWorld(map: MapData, grid: CollisionGrid, turf: Turf): World
 
   group.add(roads(map, turf));
   const city = buildings(map, turf);
-  group.add(city.mesh, city.rims);
+  group.add(city.mesh);
+  if (city.rims) group.add(city.rims);
+  if (city.outlines) group.add(city.outlines);
   group.add(trees(map, grid));
   group.add(stations(map));
 
@@ -80,7 +106,7 @@ export function buildWorld(map: MapData, grid: CollisionGrid, turf: Turf): World
     group,
     labelHeights: city.labelHeights,
     update(time, dt) {
-      waterMat.emissiveIntensity = 0.9 + Math.sin(time * 0.8) * 0.15;
+      waterMat.emissiveIntensity = THEME.water.glow * (1 + Math.sin(time * 0.8) * 0.15);
       turf.update(dt, time);
     },
   };
@@ -104,6 +130,7 @@ function flatAreas(polys: number[][], y: number, material: THREE.Material): THRE
 }
 
 function roads(map: MapData, turf: Turf): THREE.Mesh {
+  const ROAD_STYLE = roadStyle();
   const pos: number[] = [];
   const col: number[] = [];
   const idx: number[] = [];
@@ -113,7 +140,7 @@ function roads(map: MapData, turf: Turf): THREE.Mesh {
   for (const road of map.roads) {
     if (road.w <= 0) continue;
     const style = ROAD_STYLE[road.k];
-    c.setHex(style.color);
+    c.set(style.color);
     const p = road.p;
     const n = p.length / 2;
     if (n < 2) continue;
@@ -155,7 +182,7 @@ function roads(map: MapData, turf: Turf): THREE.Mesh {
   g.setIndex(idx);
   g.computeVertexNormals();
   fixUpward(g);
-  const mesh = new THREE.Mesh(g, withTurf(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }), turf, tint(0.16)));
+  const mesh = new THREE.Mesh(g, withTurf(surface({ vertexColors: true, roughness: 0.85 }), turf, tint(0.16)));
   mesh.receiveShadow = true;
 
   // Glowing lane dashes along the bigger roads.
@@ -165,7 +192,7 @@ function roads(map: MapData, turf: Turf): THREE.Mesh {
   fixUpward(mg);
   const lines = new THREE.Mesh(
     mg,
-    new THREE.MeshStandardMaterial({ color: 0xffd36e, emissive: 0xffb347, emissiveIntensity: 0.6 }),
+    new THREE.MeshStandardMaterial({ color: THEME.laneMarks.color, emissive: THEME.laneMarks.color, emissiveIntensity: THEME.laneMarks.glow }),
   );
   mesh.add(lines);
   return mesh;
@@ -214,7 +241,7 @@ function dashes(p: number[], y: number, out: number[]) {
   }
 }
 
-const WALL_COLORS = [0x6c6680, 0x5d6478, 0x7a7088, 0x58606e, 0x847a8c, 0x4f5868];
+
 
 /** Which stronghold each named OSM building belongs to. */
 const STRONGHOLD_BY_BUILDING = new Map<string, number>();
@@ -238,9 +265,9 @@ function buildings(map: MapData, turf: Turf) {
     const n = p.length / 2;
     const h = b.h;
     const seed = rand();
-    c.setHex(WALL_COLORS[Math.floor(rand() * WALL_COLORS.length)]);
+    c.set(THEME.walls[Math.floor(rand() * THEME.walls.length)]);
     c.offsetHSL(0, 0, (rand() - 0.5) * 0.06);
-    roof.setHex(0x3a3646).offsetHSL(0, 0, (rand() - 0.5) * 0.04);
+    roof.set(THEME.roofs[Math.floor(rand() * THEME.roofs.length)]).offsetHSL(0, 0, (rand() - 0.5) * 0.04);
 
     let cx = 0, cz = 0;
     for (let i = 0; i < n; i++) { cx += p[i * 2]; cz += p[i * 2 + 1]; }
@@ -248,7 +275,7 @@ function buildings(map: MapData, turf: Turf) {
     const territory = stronghold ?? Math.max(0, turf.at(cx / n, cz / n));
     const strong = stronghold !== undefined ? 1 : 0;
     if (strong) labelHeights[territory] = Math.max(labelHeights[territory], Math.min(h, 60));
-    if (h > 14 || strong) rim(p, h, territory, strong, rimPos, rimTurf);
+    if (THEME.roofBands > 0 && (h > 14 || strong)) rim(p, h, territory, strong, rimPos, rimTurf);
 
     // Walls.
     let u = 0;
@@ -296,8 +323,11 @@ function buildings(map: MapData, turf: Turf) {
   g.setAttribute('turf', new THREE.Float32BufferAttribute(tid, 2));
   g.computeVertexNormals();
 
+  const W = THEME.windows;
+  const [plainTint, strongTint] = THEME.gangTint;
+  const glass = W.glow === 0 ? 0.55 : 0; // daytime: panes read as sky-tinted glass instead of lights
   const mat = withTurf(
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.05 }),
+    surface({ vertexColors: true, roughness: 0.78, metalness: 0.05 }),
     turf,
     `varying vec3 vWin;
 varying vec2 vTurf;
@@ -308,23 +338,23 @@ vec4 flags = turfFlags(vTurf.x);
 float strong = vTurf.y;
 float pulse = 0.55 + 0.45 * sin(uTime * 4.0);
 // Buildings take the colour of the gang that holds their turf; strongholds most of all.
-diffuseColor.rgb = mix(diffuseColor.rgb, own.rgb * 0.75, 0.22 + strong * 0.4);
-totalEmissiveRadiance += own.rgb * (strong * 0.18 + own.a * 0.35 + flags.r * 0.3 * pulse + flags.g * 0.12 * pulse + flags.b * 0.12);
+diffuseColor.rgb = mix(diffuseColor.rgb, own.rgb * 0.75, ${plainTint.toFixed(3)} + strong * ${(strongTint - plainTint).toFixed(3)});
+totalEmissiveRadiance += own.rgb * (strong * ${(THEME.roofBands > 0 ? 0.18 : 0.04).toFixed(3)} + own.a * 0.35 + flags.r * 0.3 * pulse + flags.g * 0.12 * pulse + flags.b * 0.12);
 if (vWin.z >= 0.0) {
   vec2 cellSize = vec2(3.4, 3.6);
   vec2 cell = floor(vWin.xy / cellSize);
   vec2 f = fract(vWin.xy / cellSize);
   float pane = step(0.18, f.x) * step(f.x, 0.82) * step(0.28, f.y) * step(f.y, 0.78);
   float r = winHash(cell + vWin.z * 97.0);
-  float lit = step(0.58, r) * step(1.0, cell.y);
-  vec3 warm = vec3(1.0, 0.72, 0.38);
-  vec3 cold = vec3(0.35, 0.85, 1.0);
-  vec3 wc = r > 0.88 ? mix(cold, own.rgb, 0.6) : warm;
-  totalEmissiveRadiance += pane * lit * wc * 1.2;
-  diffuseColor.rgb *= 1.0 - pane * 0.45;
-  // Shop fronts: a glowing strip along the ground floor, in the gang's colour.
+  float lit = step(${(1 - W.lit).toFixed(3)}, r) * step(1.0, cell.y);
+  vec3 warm = ${glslColor(W.warm)};
+  vec3 cold = ${glslColor(W.cool)};
+  vec3 wc = r > 0.88 ? ${W.colourful ? 'mix(cold, own.rgb, 0.6)' : 'cold'} : warm;
+  totalEmissiveRadiance += pane * lit * wc * ${W.glow.toFixed(3)};
+  diffuseColor.rgb = mix(diffuseColor.rgb * (1.0 - pane * 0.45), cold * 0.8, pane * ${glass.toFixed(2)});
+  // Shop fronts: a glowing strip along the ground floor.
   float shop = step(0.6, vWin.y) * step(vWin.y, 2.8) * step(0.5, winHash(vec2(floor(vWin.x / 9.0), vWin.z)));
-  totalEmissiveRadiance += shop * mix(warm, own.rgb, 0.7) * 0.7;
+  totalEmissiveRadiance += shop * ${W.colourful ? 'mix(warm, own.rgb, 0.7)' : 'warm'} * ${W.shops.toFixed(3)};
 }`,
     `attribute vec3 win;
 attribute vec2 turf;
@@ -339,6 +369,20 @@ vTurf = turf;`,
   mesh.receiveShadow = true;
   mesh.name = 'buildings';
 
+  // Ink outlines along building edges (cel-shaded themes).
+  let outlines: THREE.LineSegments | null = null;
+  if (THEME.outlines) {
+    mat.polygonOffset = true;
+    mat.polygonOffsetFactor = 1;
+    mat.polygonOffsetUnits = 1;
+    const edges = new THREE.EdgesGeometry(new THREE.BufferGeometry().setAttribute('position', g.getAttribute('position')), 25);
+    outlines = new THREE.LineSegments(
+      edges,
+      new THREE.LineBasicMaterial({ color: THEME.outlines.color, transparent: true, opacity: THEME.outlines.opacity }),
+    );
+    outlines.name = 'outlines';
+  }
+
   // Neon edges along the roofs, in the colour of the gang that holds the turf.
   const rg = new THREE.BufferGeometry();
   rg.setAttribute('position', new THREE.Float32BufferAttribute(rimPos, 3));
@@ -350,15 +394,15 @@ vTurf = turf;`,
       .replace('#include <common>', '#include <common>\nattribute vec2 turf;\nvarying vec2 vTurf;\nvarying vec3 vTurfPos;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTurf = turf;\nvTurfPos = position;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${TURF_GLSL}\nvarying vec2 vTurf;`)
+      .replace('#include <common>', `#include <common>\n${TURF_GLSL()}\nvarying vec2 vTurf;`)
       .replace(
         'vec4 diffuseColor = vec4( diffuse, opacity );',
-        'vec4 own = turfOwner(vTurf.x);\nvec4 diffuseColor = vec4(own.rgb * (2.0 + vTurf.y * 1.2 + own.a * 1.0), opacity);',
+        `vec4 own = turfOwner(vTurf.x);\nvec4 diffuseColor = vec4(own.rgb * (${THEME.roofBands.toFixed(2)} + vTurf.y * 1.2 + own.a * 1.0), opacity);`,
       );
   };
-  const rims = new THREE.Mesh(rg, rimMat);
-  rims.name = 'roof-neon';
-  return { mesh, rims, labelHeights };
+  const rims = rimPos.length ? new THREE.Mesh(rg, rimMat) : null;
+  if (rims) rims.name = 'roof-neon';
+  return { mesh, rims, outlines, labelHeights };
 }
 
 /** A thin glowing band just under the roof line, facing outward. Strongholds get a thicker one. */
@@ -413,7 +457,7 @@ function trees(map: MapData, grid: CollisionGrid): THREE.InstancedMesh {
   const count = Math.min(20000, spots.length / 2);
   const mesh = new THREE.InstancedMesh(
     treeGeometry(),
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true }),
+    surface({ vertexColors: true, roughness: 0.9, flatShading: true }),
     count,
   );
   const m = new THREE.Matrix4();
@@ -421,13 +465,13 @@ function trees(map: MapData, grid: CollisionGrid): THREE.InstancedMesh {
   const s = new THREE.Vector3();
   const v = new THREE.Vector3();
   const color = new THREE.Color();
-  const greens = [0x3f8a4e, 0x4f9a3e, 0x2f7a5a, 0x5aa04a, 0x3a7046];
+  const greens = THEME.trees;
   for (let i = 0; i < count; i++) {
     const k = rand() * 0.6 + 0.75;
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * Math.PI * 2);
     m.compose(v.set(spots[i * 2], 0, spots[i * 2 + 1]), q, s.set(k, k * (0.9 + rand() * 0.3), k));
     mesh.setMatrixAt(i, m);
-    color.setHex(greens[Math.floor(rand() * greens.length)]);
+    color.set(greens[Math.floor(rand() * greens.length)]);
     mesh.setColorAt(i, color);
   }
   mesh.castShadow = true;

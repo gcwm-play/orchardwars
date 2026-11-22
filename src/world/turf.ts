@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GANGS, REGIONS, TERRITORIES, type GangId } from '../game/data.ts';
+import { THEME, glslColor } from '../engine/theme.ts';
 import type { TerritoryMap } from './territoryMap.ts';
 
 // Who owns what, on the graphics card. Two small textures drive every turf colour:
@@ -96,7 +97,7 @@ export class Turf {
 }
 
 /** GLSL shared by every material that shows turf. Needs vTurfPos (world position). */
-export const TURF_GLSL = /* glsl */ `
+export const TURF_GLSL = /* glsl */ () => `
 uniform sampler2D uTurfIds;
 uniform sampler2D uTurfState;
 uniform vec4 uTurfRect;
@@ -129,7 +130,8 @@ vec3 turfGround(inout vec3 diffuse, float tintAmount) {
   b += step(0.5, abs(turfIdAt(uv - vec2(uTurfTexel.x, 0.0)) - id));
   b += step(0.5, abs(turfIdAt(uv + vec2(0.0, uTurfTexel.y)) - id));
   b += step(0.5, abs(turfIdAt(uv - vec2(0.0, uTurfTexel.y)) - id));
-  vec3 glow = owner * min(b, 1.0) * (0.9 + mall * 0.9);
+  diffuse = mix(diffuse, owner * 0.55, min(b, 1.0) * ${THEME.turf.borderInk.toFixed(3)});
+  vec3 glow = owner * min(b, 1.0) * ${THEME.turf.borderGlow.toFixed(3)} * (1.0 + mall);
   float pulse = 0.55 + 0.45 * sin(uTime * 4.0);
   glow += vec3(1.0) * flags.r * 0.22 * pulse;            // selected
   glow += vec3(1.0, 0.25, 0.3) * flags.g * 0.2 * pulse;  // valid target
@@ -145,8 +147,8 @@ vec3 turfGround(inout vec3 diffuse, float tintAmount) {
     rb += step(0.5, abs(regionAt(uv - vec2(0.0, o.y)) - reg));
   }
   rb = min(rb, 1.0);
-  diffuse = mix(diffuse, vec3(0.85, 0.62, 0.22), rb * 0.8);
-  glow += vec3(0.9, 0.6, 0.18) * rb * 0.22;
+  diffuse = mix(diffuse, ${glslColor(THEME.turf.region)}, rb * 0.8);
+  glow += ${glslColor(THEME.turf.region)} * rb * ${THEME.turf.regionGlow.toFixed(3)};
   glow += owner * turfOwner(id).a * 0.35;                // capture flash
   return glow;
 }
@@ -163,7 +165,7 @@ export function withTurf(material: THREE.Material, turf: Turf, fragment: string,
         `#include <project_vertex>\nvTurfPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\n${extraVertex.split('@@')[1] ?? ''}`,
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${TURF_GLSL}\n${fragment.split('@@')[0]}`)
+      .replace('#include <common>', `#include <common>\n${TURF_GLSL()}\n${fragment.split('@@')[0]}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${fragment.split('@@')[1] ?? ''}`);
   };
   return material;

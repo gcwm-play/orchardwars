@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
 import { Stage } from './engine/stage.ts';
+import { setTheme } from './engine/theme.ts';
 import { MapControls } from './engine/mapControls.ts';
 import { loadMap } from './world/mapData.ts';
 import { buildWorld } from './world/buildWorld.ts';
@@ -20,6 +21,8 @@ import { MapTags } from './ui/mapTags.ts';
 import { briefing } from './ui/briefing.ts';
 
 async function start() {
+  // Pick the look before anything is built: ?theme=neon|daylight|golden|moonlit
+  setTheme(new URLSearchParams(location.search).get('theme'));
   const root = document.getElementById('app')!;
   const canvas = document.createElement('canvas');
   root.appendChild(canvas);

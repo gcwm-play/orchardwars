@@ -452,3 +452,37 @@ button { font: inherit; color: inherit; }
   .rl .pips i { width: 6px; height: 6px; }
 }
 .legend .lg.region { height: 4px; border-radius: 2px; background: #f2c35a; box-shadow: 0 0 6px #f2c35a; }
+
+/* --- Light UI (daylight theme) ----------------------------------------------------- */
+:root[data-theme='light'] {
+  --bg: #f3ead8;
+  --ink: #2c2330;
+  --muted: #6e6272;
+  --accent: #2f8f6f;
+  --panel: rgba(255, 250, 240, 0.9);
+  --line: rgba(60, 40, 50, 0.16);
+  --danger: #d0414f;
+}
+:root[data-theme='light'] body { background: var(--bg); }
+:root[data-theme='light'] #loading::before { text-shadow: none; }
+:root[data-theme='light'] .tl .nm { background: rgba(255, 250, 240, 0.9); color: var(--ink); text-shadow: none; }
+:root[data-theme='light'] .tl.mall .nm { color: var(--ink); border-bottom: 2px solid var(--c); }
+:root[data-theme='light'] .tl .n { color: #1d1620; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); border-color: rgba(40, 25, 30, 0.6); }
+:root[data-theme='light'] .tl.mall .n::before { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); }
+:root[data-theme='light'] .streets span { color: rgba(60, 45, 55, 0.75); text-shadow: 0 0 3px #fff, 0 0 6px #fff; }
+:root[data-theme='light'] .rl { background: rgba(255, 248, 232, 0.92); }
+:root[data-theme='light'] .rl .rn { color: color-mix(in srgb, var(--c) 70%, #3a2a20); }
+:root[data-theme='light'] .rl .rb, :root[data-theme='light'] .score .st.inc, :root[data-theme='light'] .battle .b-tally b { text-shadow: none; }
+:root[data-theme='light'] .inc { box-shadow: none; }
+:root[data-theme='light'] .rl .rb, :root[data-theme='light'] .score .st.inc { color: #b07400; }
+:root[data-theme='light'] .feed > div { background: rgba(255, 250, 240, 0.8); }
+:root[data-theme='light'] .battle { background: rgba(255, 250, 240, 0.97); }
+:root[data-theme='light'] .maptag { background: rgba(255, 250, 240, 0.95); color: var(--ink); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
+:root[data-theme='light'] .start, :root[data-theme='light'] .win { background: radial-gradient(ellipse at center, rgba(255, 248, 232, 0.5), rgba(243, 234, 216, 0.92)); }
+:root[data-theme='light'] .start h1 { text-shadow: none; color: #2f8f6f; }
+:root[data-theme='light'] .panel button, :root[data-theme='light'] .viewctl button { background: rgba(60, 40, 50, 0.06); }
+:root[data-theme='light'] .panel button.primary, :root[data-theme='light'] .start .go { color: #fff; }
+:root[data-theme='light'] .dice { background: rgba(60, 40, 50, 0.2); }
+:root[data-theme='light'] .dice.def i { background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
+:root[data-theme='light'] .chip { box-shadow: none; }
+:root[data-theme='light'] .pd i.on { background: #1d1620; }

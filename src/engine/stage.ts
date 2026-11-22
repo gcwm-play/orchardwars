@@ -4,15 +4,25 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { IsoCamera } from './isoCamera.ts';
+import { THEME } from './theme.ts';
 
-// Renderer, lights and post-processing for the dystopian-dusk look.
+// Renderer, lights and post-processing. Colours and moods come from the active theme.
 
-export const PALETTE = {
-  sky: 0x1b1430,
-  sun: 0xffb98a,
-  skyLight: 0x8a7cff,
-  groundLight: 0x1f3a3a,
-};
+/** A vertical sky gradient for the scene background. */
+function skyTexture(top: string, horizon: string) {
+  const c = document.createElement('canvas');
+  c.width = 2;
+  c.height = 256;
+  const g = c.getContext('2d')!;
+  const grad = g.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, top);
+  grad.addColorStop(1, horizon);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 2, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 export class Stage {
   readonly renderer: THREE.WebGLRenderer;
@@ -22,7 +32,7 @@ export class Stage {
   private readonly composer: EffectComposer;
   private readonly bloom: UnrealBloomPass;
   /** Sun offset from the point it lights (also sets the shadow direction). */
-  private readonly sunOffset = new THREE.Vector3(-260, 420, 180);
+  private readonly sunOffset = new THREE.Vector3(...THEME.sun.offset);
 
   constructor(canvas: HTMLCanvasElement) {
     const mobile = matchMedia('(pointer: coarse)').matches;
@@ -31,13 +41,14 @@ export class Stage {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = THEME.exposure;
 
-    this.scene.background = new THREE.Color(PALETTE.sky);
-    this.scene.fog = new THREE.Fog(PALETTE.sky, 1500, 3200);
+    const [top, horizon] = THEME.sky;
+    this.scene.background = top === horizon ? new THREE.Color(top) : skyTexture(top, horizon);
+    this.scene.fog = new THREE.Fog(horizon, ...THEME.fog);
 
-    this.scene.add(new THREE.HemisphereLight(PALETTE.skyLight, PALETTE.groundLight, 1.1));
-    this.sun = new THREE.DirectionalLight(PALETTE.sun, 2.0);
+    this.scene.add(new THREE.HemisphereLight(THEME.hemi.sky, THEME.hemi.ground, THEME.hemi.intensity));
+    this.sun = new THREE.DirectionalLight(THEME.sun.color, THEME.sun.intensity);
     this.sun.castShadow = true;
     const size = mobile ? 1024 : 2048;
     this.sun.shadow.mapSize.set(size, size);
@@ -52,7 +63,8 @@ export class Stage {
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.view.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.6, 0.45, 0.72);
+    const b = THEME.bloom;
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), b.strength, b.radius, b.threshold);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
