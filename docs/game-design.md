@@ -70,6 +70,12 @@ attacks, but the rich centre (Orchard, the Civic District, Marina) is heavily de
   tally counts each side's losses. A Blitz plays its rounds one after another. Your own battles stay on
   screen until your next action; computer battles show their final round and then fade.
 - The **scoreboard** shows every gang's strongholds, territories and recruits per turn.
+- **Following the computer gangs**: at the start of their turn the camera frames their turf, and
+  reinforcements pop up as `+N` tags. Before each attack it flies to the fight and draws a glowing arrow in
+  the attacker's colour. After the dice, a tag over the territory shows the aftermath ("Captured by …" or
+  "Held by …", with both sides' losses). Moves get a paler arrow. When your turn comes, the camera flies
+  back to your turf. **Following ✓** turns the camera moves off; if you pan or zoom yourself during their
+  turn, the camera stops flying for the rest of it. Fast forward skips all of this.
 - **On phones** the scoreboard is a single strip (◆ strongholds and +recruits per gang), the map controls
   fold into one "⋯" button, the territory card is a brief peek, and battle pop-ups close on a tap.
 - **Map controls** (bottom right on desktop): rotate, zoom, north-up compass, whole-map view and a map key. Rotation

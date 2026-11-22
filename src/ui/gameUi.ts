@@ -18,8 +18,18 @@ export interface UiHooks {
   pulse(t: number, strength?: number): void;
   /** Recolour the city after ownership changes. */
   owners(owners: GangId[]): void;
-  /** Glide the camera to a territory. */
-  focus(t: number): void;
+  /** Camera and map effects that let the player follow the computer gangs. */
+  director: {
+    /** Glide the camera to fit these territories. */
+    frame(territories: number[], close?: boolean): void;
+    /** Draw an arrow between two territories. */
+    arrow(from: number, to: number, gang: GangId, kind: 'attack' | 'move'): void;
+    fadeArrows(): void;
+    /** A short-lived label over a territory. */
+    tag(t: number, html: string, color: string): void;
+    /** Has the player moved the map themselves since this time (performance.now())? */
+    userMovedSince(time: number): boolean;
+  };
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -42,6 +52,8 @@ export class GameUi {
   private moveAmount = 0;
   private aiTimer = 0;
   private fast = false;
+  /** Fly the camera to the computer gangs' moves. */
+  private follow = true;
   private readonly score: HTMLElement;
   private readonly panel: HTMLElement;
   private readonly feed: HTMLElement;
@@ -185,6 +197,7 @@ export class GameUi {
           this.session.act({ type: 'endTurn' });
           break;
         case 'fast': this.fast = !this.fast; break;
+        case 'follow': this.follow = !this.follow; break;
         case 'menu': location.reload(); break;
       }
     } catch (err) {
@@ -205,19 +218,39 @@ export class GameUi {
 
   // --- Computer turns ----------------------------------------------------------------
 
-  private scheduleAi() {
+  /**
+   * Run the computer gangs one action at a time. Attacks and moves are staged so the player can
+   * follow them: the camera flies over, an arrow is drawn, then the dice roll, then a pause.
+   */
+  private scheduleAi(delay?: number) {
     clearTimeout(this.aiTimer);
     const s = this.state;
     if (s.phase === 'over' || this.session.isHumanTurn) return;
-    const delay = this.fast ? 90 : s.phase === 'attack' ? 1500 : 380;
     this.aiTimer = window.setTimeout(() => {
       const action = aiAction(this.state);
-      if (action.type === 'attack') this.hooks.focus(action.to);
+      const gang = this.state.current;
+      const watching = this.follow && !this.fast;
+      if (watching && (action.type === 'attack' || action.type === 'move')) {
+        const d = this.hooks.director;
+        d.fadeArrows();
+        if (!d.userMovedSince(this.aiTurnStart)) d.frame([action.from, action.to], true);
+        d.arrow(action.from, action.to, gang, action.type);
+        this.aiTimer = window.setTimeout(() => {
+          this.session.act(action);
+          this.refresh();
+          this.scheduleAi(action.type === 'attack' ? 2400 : 1000);
+        }, action.type === 'attack' ? 1100 : 700);
+        return;
+      }
+      if (action.type === 'endTurn') this.hooks.director.fadeArrows();
       this.session.act(action);
       this.refresh();
       this.scheduleAi();
-    }, delay);
+    }, delay ?? (this.fast ? 90 : 420));
   }
+
+  /** When the current computer turn started (to tell if the player has moved the map since). */
+  private aiTurnStart = 0;
 
   // --- Reacting to the game ---------------------------------------------------------
 
@@ -226,16 +259,34 @@ export class GameUi {
     let owners = false;
     for (const e of events) {
       switch (e.type) {
-        case 'turn':
-          if (e.gang === s.human) this.turnRecruits = e.recruits;
+        case 'turn': {
+          const d = this.hooks.director;
+          const theirs = territoriesOf(s, e.gang);
+          if (e.gang === s.human) {
+            // Back to you: fly to your turf.
+            this.turnRecruits = e.recruits;
+            d.fadeArrows();
+            d.frame(theirs);
+          } else {
+            this.aiTurnStart = performance.now();
+            if (this.follow && !this.fast) d.frame(theirs);
+          }
           this.log(`${chip(e.gang)} ${gname(e.gang)} recruits ${e.recruits.total}.`);
           if (e.gang === s.human) this.toast(`Your turn: ${e.recruits.total} new members to place.`, recruitBreakdown(e.recruits));
+          break;
+        }
+        case 'placed':
+          if (e.gang !== s.human && this.follow && !this.fast) {
+            this.hooks.pulse(e.t, 0.5);
+            this.hooks.director.tag(e.t, `+${e.n}`, GANGS[e.gang].color);
+          }
           break;
         case 'ambushSet':
           if (e.gang === s.human) this.log(`You hid an ambush in ${tname(e.t)}.`);
           break;
         case 'battle':
           this.showBattle(e);
+          this.aftermath(e);
           this.hooks.pulse(e.to, 0.6);
           if (e.ambushLoss) this.log(`⚡ Ambush in ${tname(e.to)}! ${gname(e.gang)} lost ${e.ambushLoss}.`);
           break;
@@ -253,6 +304,7 @@ export class GameUi {
           break;
         case 'moved':
           if (e.gang === s.human) this.log(`Moved ${e.n} from ${tname(e.from)} to ${tname(e.to)}.`);
+          else if (this.follow && !this.fast) this.hooks.director.tag(e.to, `+${e.n} moved in`, GANGS[e.gang].color);
           break;
         case 'win':
           this.showWin(e.gang, e.reason);
@@ -313,7 +365,8 @@ export class GameUi {
     if (s.phase === 'over') return `<div class="row"><button data-act="menu" class="primary">New game</button></div>`;
     if (!this.session.isHumanTurn) {
       return `<div class="phase">${chip(s.current)} ${gname(s.current)} is making moves…</div>
-        <div class="row"><button data-act="fast" class="${this.fast ? 'on' : ''}">${this.fast ? 'Fast ✓' : 'Fast forward'}</button></div>`;
+        <div class="row"><button data-act="fast" class="${this.fast ? 'on' : ''}">${this.fast ? 'Fast ✓' : 'Fast forward'}</button>
+        <button data-act="follow" class="${this.follow ? 'on' : ''}" title="Fly the camera to their attacks">${this.follow ? 'Following ✓' : 'Follow camera'}</button></div>`;
     }
     const steps = (['recruit', 'attack', 'move'] as const)
       .map((p) => `<span class="${p === s.phase ? 'on' : ''}">${p === 'recruit' ? '1 Recruit' : p === 'attack' ? '2 Attack' : '3 Move'}</span>`)
@@ -453,6 +506,16 @@ export class GameUi {
     // On phones the card is a brief peek, so it doesn't sit over the map.
     clearTimeout(this.infoTimer);
     if (innerWidth < 640) this.infoTimer = window.setTimeout(() => this.info.classList.remove('show'), 3500);
+  }
+
+  /** Pin the result of a battle on the map: who holds the turf now, and what it cost. */
+  private aftermath(b: Battle) {
+    const att = GANGS[b.gang].color, def = GANGS[b.defender].color;
+    const losses = `<span style="color:${att}">−${b.attLoss}</span> · <span style="color:${def}">−${b.defLoss}</span>`;
+    const html = b.captured
+      ? `<b>Captured</b> by ${esc(nm(b.gang))}<div>${losses}</div>`
+      : `<b>Held</b> by ${esc(nm(b.defender))}<div>${losses}</div>`;
+    this.hooks.director.tag(b.to, html, b.captured ? att : def);
   }
 
   private showBattle(b: Battle) {

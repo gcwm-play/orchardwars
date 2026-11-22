@@ -291,7 +291,7 @@ button { font: inherit; color: inherit; }
 @media (max-width: 640px) { .briefing .cols { grid-template-columns: 1fr; } }
 
 /* --- Battle pop-up: dice --------------------------------------------------------------- */
-.battle { top: 12%; min-width: 360px; padding: 12px 16px 10px; text-align: left; background: rgba(16, 12, 30, 0.96); }
+.battle { top: 10px; min-width: 360px; padding: 12px 16px 10px; text-align: left; background: rgba(16, 12, 30, 0.96); }
 .battle .b-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; margin-bottom: 8px; }
 .battle .b-side { display: flex; flex-direction: column; color: var(--c); }
 .battle .b-side.right { text-align: right; }
@@ -403,3 +403,21 @@ button { font: inherit; color: inherit; }
   .slider { margin-bottom: 6px; }
   .toast { top: 30%; font-size: 14px; padding: 8px 12px; width: calc(100vw - 40px); }
 }
+
+/* --- Following the computer gangs: map tags ---------------------------------------- */
+.maptags { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+.maptag {
+  position: absolute; left: 0; top: 0; padding: 4px 9px; white-space: nowrap; text-align: center;
+  font-size: 13px; color: var(--ink); background: rgba(10, 8, 20, 0.88); border: 1px solid var(--c);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c) 55%, transparent); animation: tag-in 0.3s ease-out;
+  transition: opacity 0.5s;
+}
+.maptag b { color: var(--c); text-transform: uppercase; letter-spacing: 0.06em; }
+.maptag div { font-size: 12px; font-weight: 700; }
+.maptag::after {
+  content: ''; position: absolute; left: 50%; bottom: -6px; margin-left: -5px;
+  border: 5px solid transparent; border-top-color: var(--c); border-bottom: 0;
+}
+.maptag.leaving { opacity: 0; }
+@keyframes tag-in { from { opacity: 0; margin-top: 8px; } }
+@media (max-width: 640px) { .maptag { font-size: 11px; padding: 3px 7px; } .maptag div { font-size: 10px; } }

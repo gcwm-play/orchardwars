@@ -14,7 +14,9 @@ import { Labels, StreetNames } from './ui/labels.ts';
 import { startScreen } from './ui/startScreen.ts';
 import { ViewControls } from './ui/viewControls.ts';
 import type { GameEvent } from './game/rules.ts';
-import { PLAYER_GANGS, type PlayerGang } from './game/data.ts';
+import { GANGS, PLAYER_GANGS, type PlayerGang } from './game/data.ts';
+import { Arrows } from './world/arrows.ts';
+import { MapTags } from './ui/mapTags.ts';
 import { briefing } from './ui/briefing.ts';
 
 async function start() {
@@ -55,6 +57,9 @@ async function start() {
   let controls: MapControls | null = null;
   let viewCtl: ViewControls | null = null;
   const streets = new StreetNames(root, map);
+  const arrows = new Arrows();
+  stage.scene.add(arrows.group);
+  const tags = new MapTags(root);
   const loop = () => {
     const dt = Math.min(0.05, clock.getDelta());
     controls?.update(dt);
@@ -66,6 +71,8 @@ async function start() {
     }
     viewCtl?.update(stage.view.heading);
     streets.update(stage.view.camera, canvas.clientWidth, canvas.clientHeight, stage.view.viewHalfHeight < 650);
+    arrows.update(dt);
+    tags.update(stage.view.camera, canvas.clientWidth, canvas.clientHeight);
     stage.render();
     requestAnimationFrame(loop);
   };
@@ -102,8 +109,12 @@ async function start() {
     highlight: (sel, targets) => turf.setHighlight(sel, targets, null),
     pulse: (t, k) => turf.pulse(t, k),
     owners: (o) => turf.setOwners(o),
-    focus: (t) => {
-      if (stage.view.viewHalfHeight < 900) stage.view.focus(anchors[t][0], anchors[t][1]);
+    director: {
+      frame: (ts, close) => stage.view.frame(ts.map((t) => anchors[t]), close ? 240 : 320, close ? 700 : 1300),
+      arrow: (from, to, g, kind) => arrows.show(anchors[from], anchors[to], GANGS[g].color, kind),
+      fadeArrows: () => arrows.fadeAll(),
+      tag: (t, html, color) => tags.show(anchors[t][0], anchors[t][1], html, color, 2800, (world.labelHeights[t] || 0) + 30),
+      userMovedSince: (time) => stage.view.lastUserInput > time,
     },
   });
   const gameUi = ui;

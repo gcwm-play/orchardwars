@@ -28,13 +28,39 @@ export class IsoCamera {
     this.applyFrustum();
   }
 
+  /** When the player last panned, zoomed or turned the map themselves (ms, performance.now()). */
+  lastUserInput = -Infinity;
+  private zoomGoal: number | null = null;
+
+  /** Glide to a zoom level (used by the camera director). */
+  zoomTo(half: number) {
+    this.zoomGoal = THREE.MathUtils.clamp(half, this.minHalf, this.maxHalf);
+  }
+
+  /** Glide so that every given point (world x, z) fits in view, with some margin. */
+  frame(points: [number, number][], minHalf = 220, maxHalf = 1300) {
+    if (!points.length) return;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const [x, z] of points) {
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+      minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+    }
+    this.focus((minX + maxX) / 2, (minZ + maxZ) / 2);
+    // The view is turned, so use the diagonal; the shorter screen side must hold it.
+    const span = Math.hypot(maxX - minX, maxZ - minZ);
+    this.zoomTo(THREE.MathUtils.clamp(span * 0.62 + 140, minHalf, maxHalf));
+  }
+
   zoomBy(factor: number) {
+    this.zoomGoal = null;
+    this.lastUserInput = performance.now();
     this.viewHalfHeight = THREE.MathUtils.clamp(this.viewHalfHeight * factor, this.minHalf, this.maxHalf);
     this.applyFrustum();
   }
 
   /** Turn the view by quarter turns (+1 = clockwise). */
   rotate(quarters: number) {
+    this.lastUserInput = performance.now();
     this.yawGoal += (quarters * Math.PI) / 2;
   }
 
@@ -63,6 +89,8 @@ export class IsoCamera {
     this.target.x -= cos * dx * perPixel + sin * dy * ground;
     this.target.z -= -sin * dx * perPixel + cos * dy * ground;
     this.goal = null;
+    this.zoomGoal = null;
+    this.lastUserInput = performance.now();
     this.clampTarget();
   }
 
@@ -84,6 +112,11 @@ export class IsoCamera {
     if (this.goal) {
       this.target.lerp(this.goal, 1 - Math.exp(-dt * 4));
       if (this.target.distanceTo(this.goal) < 2) this.goal = null;
+    }
+    if (this.zoomGoal !== null) {
+      this.viewHalfHeight += (this.zoomGoal - this.viewHalfHeight) * (1 - Math.exp(-dt * 4));
+      if (Math.abs(this.zoomGoal - this.viewHalfHeight) < 1) this.zoomGoal = null;
+      this.applyFrustum();
     }
     this.yaw += (this.yawGoal - this.yaw) * (1 - Math.exp(-dt * 10));
     const flat = Math.cos(this.pitch) * this.distance;
