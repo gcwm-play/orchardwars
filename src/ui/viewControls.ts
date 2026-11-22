@@ -16,6 +16,8 @@ export class ViewControls {
           <div><span class="lg mall"></span><b>Stronghold</b> (mall): pays <span class="inc">+N</span> members a turn, defends with 3 dice. Striped on the map.</div>
           <div><span class="lg street"></span><b>Street</b>: defends with 2 dice. Only place to hide an ambush.</div>
           <div><span class="dice att"><i></i><i></i><i></i></span> dice you attack with &nbsp; <span class="dice def"><i></i><i></i></span> dice defending</div>
+          <div><span class="lg region"></span><b>Gold lines</b> mark regions. Hold every territory in one for its bonus. Tap a region's label to see who holds what.</div>
+          <div><span class="cutmark">⊘</span> <b>Cut off</b>: no path through your turf to one of your strongholds. It can't be reinforced and attacks with 2 dice at most.</div>
         </div>
       </div>
       <div class="btns">

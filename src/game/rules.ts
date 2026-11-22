@@ -13,6 +13,7 @@ export const AMBUSH_COST = 2; // members from the recruit pool
 export const AMBUSH_STRIKE = 3; // attackers lost when walking into an ambush
 export const MAX_AMBUSHES = 3; // active per gang
 export const MALL_DEFENCE_DICE = 3; // malls are fortified: defenders roll 3 and keep the best 2
+export const CUT_OFF_ATTACK_DICE = 2; // turf with no supply line attacks with fewer dice
 
 export type Phase = 'recruit' | 'attack' | 'move' | 'over';
 
@@ -140,6 +141,35 @@ export function recruitsFor(s: GameState, g: GangId): Recruits {
   return { total, base, firstTurn, malls, regions };
 }
 
+/**
+ * Supply lines: the turf a gang holds that connects, through its own territory, to a stronghold
+ * it holds. Cut-off turf can't be reinforced and attacks with fewer dice. A gang with no
+ * strongholds at all counts everything as supplied, so it can never be locked out completely.
+ */
+export function supplied(s: GameState, g: GangId): Set<number> {
+  const mine = territoriesOf(s, g);
+  const depots = mine.filter(isMall);
+  if (depots.length === 0) return new Set(mine);
+  const seen = new Set(depots);
+  const stack = [...depots];
+  while (stack.length) {
+    const i = stack.pop()!;
+    for (const j of s.adjacency[i]) if (!seen.has(j) && s.owner[j] === g) seen.add(j), stack.push(j);
+  }
+  return seen;
+}
+
+/** Is this turf cut off from its owner's supply lines? (Neutral garrisons never are.) */
+export function isCutOff(s: GameState, t: number): boolean {
+  const g = s.owner[t];
+  return g !== 'neutral' && !supplied(s, g).has(t);
+}
+
+/** Dice this turf attacks with: up to 3, or fewer when cut off. */
+export function attackDiceFor(s: GameState, t: number): number {
+  return Math.max(0, Math.min(isCutOff(s, t) ? CUT_OFF_ATTACK_DICE : 3, s.members[t] - 1));
+}
+
 export function canAttack(s: GameState, from: number, to: number): boolean {
   return (
     s.phase === 'attack' &&
@@ -174,6 +204,7 @@ export function canAmbush(s: GameState, t: number): boolean {
     s.owner[t] === s.current &&
     TERRITORIES[t].kind === 'street' &&
     s.ambush[t] === null &&
+    !isCutOff(s, t) &&
     s.reserves >= AMBUSH_COST &&
     s.ambush.filter((a) => a === s.current).length < MAX_AMBUSHES
   );
@@ -188,6 +219,7 @@ export function apply(s: GameState, a: Action): GameEvent[] {
   switch (a.type) {
     case 'place': {
       if (s.phase !== 'recruit' || s.owner[a.t] !== g) throw new Error('You can only recruit into your own turf');
+      if (isCutOff(s, a.t)) throw new Error('That turf is cut off: no supply line to one of your strongholds');
       const n = Math.min(Math.max(1, Math.floor(a.n)), s.reserves);
       if (n <= 0) throw new Error('No members left to place');
       s.members[a.t] += n;
@@ -261,7 +293,7 @@ function attack(s: GameState, from: number, to: number, blitz: boolean): GameEve
   }
 
   while (s.members[from] >= 2 && s.members[to] > 0) {
-    const attN = Math.min(3, s.members[from] - 1);
+    const attN = attackDiceFor(s, from);
     const defN = Math.min(isMall(to) ? MALL_DEFENCE_DICE : 2, s.members[to]);
     const att = rollDice(attN, rand);
     const def = rollDice(defN, rand);

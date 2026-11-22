@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { MALLS_TO_WIN, PLAYER_GANGS, TERRITORIES, TERRITORY_INDEX } from '../src/game/data.ts';
-import { AMBUSH_COST, AMBUSH_STRIKE, apply, newGame, recruitsFor, territoriesOf, type GameState } from '../src/game/rules.ts';
+import { AMBUSH_COST, AMBUSH_STRIKE, CUT_OFF_ATTACK_DICE, apply, isCutOff, newGame, recruitsFor, supplied, territoriesOf, type GameState } from '../src/game/rules.ts';
 import { aiAction } from '../src/game/ai.ts';
 import { buildTerritoryMap } from '../src/world/territoryMap.ts';
 import type { MapData } from '../src/world/mapData.ts';
@@ -166,5 +166,49 @@ describe('undoing deployment', () => {
     session.act({ type: 'attack', from: grange, to: target });
     expect(session.undoCount).toBe(0);
     expect(session.undo()).toBe(false);
+  });
+});
+
+describe('supply lines', () => {
+  // Thorn holds Tanglin; give it Zion Road too, cut off from Tanglin Mall by Chrome's turf.
+  function cutOffGame() {
+    const s = game();
+    s.current = 'thorn';
+    s.phase = 'recruit';
+    s.reserves = 5;
+    s.owner[T('zion')] = 'thorn';
+    s.owner[T('orchard-boulevard')] = 'chrome';
+    s.owner[T('grange')] = 'chrome';
+    return s;
+  }
+
+  it('marks turf with no path to a held stronghold as cut off', () => {
+    const s = cutOffGame();
+    expect(isCutOff(s, T('zion'))).toBe(true);
+    expect(isCutOff(s, T('tanglin-village'))).toBe(false);
+    expect(supplied(s, 'thorn').has(T('tanglin-bazaar'))).toBe(true);
+  });
+
+  it('refuses recruits and ambushes on cut-off turf', () => {
+    const s = cutOffGame();
+    expect(() => apply(s, { type: 'place', t: T('zion'), n: 3 })).toThrow(/cut off/);
+    expect(() => apply(s, { type: 'ambush', t: T('zion') })).toThrow();
+    apply(s, { type: 'place', t: T('tanglin-village'), n: 3 });
+    expect(s.reserves).toBe(2);
+  });
+
+  it('caps attack dice from cut-off turf', () => {
+    const s = cutOffGame();
+    s.phase = 'attack';
+    s.members[T('zion')] = 20;
+    const events = apply(s, { type: 'attack', from: T('zion'), to: T('bahru-estate') });
+    const battle = events.find((e) => e.type === 'battle');
+    expect(battle?.type === 'battle' && battle.rounds[0].att.length).toBe(CUT_OFF_ATTACK_DICE);
+  });
+
+  it('treats everything as supplied for a gang with no strongholds', () => {
+    const s = game();
+    s.owner[T('tanglin-bazaar')] = 'chrome';
+    expect(isCutOff(s, T('grange'))).toBe(false);
   });
 });

@@ -36,6 +36,8 @@ export function startScreen(root: HTMLElement, canResume: boolean): Promise<Star
             <li><b>Attack.</b> Pick your turf (2+ members) and a neighbouring turf. Attackers roll up to 3 dice, defenders 2,
               highest dice compared and ties go to the defender. <b>Strongholds roll 3 dice to defend.</b>
               Clear a turf and you take it: its buildings switch to your colour.</li>
+            <li><b>Supply lines.</b> Turf that isn't connected through your territory to one of your strongholds is
+              <b>cut off</b>: you can't recruit there, and it attacks with 2 dice at most. Cut rivals off to weaken them.</li>
             <li><b>Move.</b> Once per turn, move members between two of your turfs that are connected through your territory.</li>
             <li><b>Win</b> by holding ${MALLS_TO_WIN} strongholds at the start of your turn, or by wiping out every rival.
               The grey Civic Guard holds the centre: it never attacks, but it digs in.</li>

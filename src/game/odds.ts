@@ -3,8 +3,8 @@
 
 import { MALL_DEFENCE_DICE } from './rules.ts';
 
-/** Dice an attacking stack rolls (it must leave one member behind). */
-export const attackDice = (members: number) => Math.max(0, Math.min(3, members - 1));
+/** Dice an attacking stack rolls (it must leave one member behind); maxDice is lower when cut off. */
+export const attackDice = (members: number, maxDice = 3) => Math.max(0, Math.min(maxDice, members - 1));
 
 /** Dice a defending stack rolls; strongholds roll more. */
 export const defenceDice = (members: number, mall: boolean) => Math.min(mall ? MALL_DEFENCE_DICE : 2, members);
@@ -13,7 +13,7 @@ export const defenceDice = (members: number, mall: boolean) => Math.min(mall ? M
  * Chance that a blitz from `att` members (one stays behind) clears `def` defenders.
  * Monte Carlo, so it is quick and follows the real rules exactly; good to about ±1%.
  */
-export function blitzOdds(att: number, def: number, mall: boolean, runs = 4000): number {
+export function blitzOdds(att: number, def: number, mall: boolean, maxAttDice = 3, runs = 4000): number {
   if (att < 2) return 0;
   if (def <= 0) return 1;
   let wins = 0;
@@ -25,7 +25,7 @@ export function blitzOdds(att: number, def: number, mall: boolean, runs = 4000):
   for (let r = 0; r < runs; r++) {
     let a = att, d = def;
     while (a >= 2 && d > 0) {
-      const ad = roll(attackDice(a));
+      const ad = roll(attackDice(a, maxAttDice));
       const dd = roll(defenceDice(d, mall));
       const pairs = Math.min(ad.length, dd.length, 2);
       for (let k = 0; k < pairs; k++) {

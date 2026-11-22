@@ -10,7 +10,7 @@ import { Turf } from './world/turf.ts';
 import { CollisionGrid } from './game/collision.ts';
 import { Session } from './game/session.ts';
 import { GameUi } from './ui/gameUi.ts';
-import { Labels, StreetNames } from './ui/labels.ts';
+import { Labels, RegionLabels, StreetNames } from './ui/labels.ts';
 import { startScreen } from './ui/startScreen.ts';
 import { ViewControls } from './ui/viewControls.ts';
 import type { GameEvent } from './game/rules.ts';
@@ -54,6 +54,7 @@ async function start() {
   const clock = new THREE.Clock();
   let ui: GameUi | null = null;
   let labels: Labels | null = null;
+  let regionLabels: RegionLabels | null = null;
   let controls: MapControls | null = null;
   let viewCtl: ViewControls | null = null;
   const streets = new StreetNames(root, map);
@@ -67,6 +68,8 @@ async function start() {
     world.update(clock.elapsedTime, dt);
     if (ui && labels) {
       labels.sync(ui.state, ui.state.human, ui.selected, ui.currentTargets, ui.badgeChips());
+      regionLabels?.sync(ui.state, ui.state.human);
+      regionLabels?.update(stage.view.camera, canvas.clientWidth, canvas.clientHeight, stage.view.viewHalfHeight > 380);
       labels.update(stage.view.camera, canvas.clientWidth, canvas.clientHeight, stage.view.viewHalfHeight < 750, stage.view.viewHalfHeight < (canvas.clientWidth < 640 ? 700 : 1400));
     }
     viewCtl?.update(stage.view.heading);
@@ -106,7 +109,7 @@ async function start() {
   };
 
   ui = new GameUi(root, session, {
-    highlight: (sel, targets) => turf.setHighlight(sel, targets, null),
+    highlight: (sel, targets, emphasis) => turf.setHighlight(sel, targets, emphasis),
     pulse: (t, k) => turf.pulse(t, k),
     owners: (o) => turf.setOwners(o),
     director: {
@@ -119,6 +122,7 @@ async function start() {
   });
   const gameUi = ui;
   labels = new Labels(root, world.labelHeights, (t) => gameUi.tap(t));
+  regionLabels = new RegionLabels(root, (r) => gameUi.showRegion(r));
   controls = new MapControls(canvas, stage.view, {
     tap: (ndc) => gameUi.tap(pickTerritory(ndc)),
     hover: () => {},

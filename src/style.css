@@ -421,3 +421,34 @@ button { font: inherit; color: inherit; }
 .maptag.leaving { opacity: 0; }
 @keyframes tag-in { from { opacity: 0; margin-top: 8px; } }
 @media (max-width: 640px) { .maptag { font-size: 11px; padding: 3px 7px; } .maptag div { font-size: 10px; } }
+
+/* --- Regions and supply ------------------------------------------------------------- */
+.regions { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+.rl {
+  position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  padding: 3px 8px; border: 1px solid color-mix(in srgb, var(--c) 70%, transparent); border-radius: 12px;
+  background: rgba(20, 14, 6, 0.72); color: var(--ink); white-space: nowrap; font-size: 11px;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 35%, transparent);
+}
+.rl .rn { font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c); }
+.rl .rb { font-weight: 700; color: #ffd34d; }
+.rl .pips { display: inline-flex; gap: 2px; }
+.rl .pips i { width: 8px; height: 8px; background: var(--c); border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); }
+.rl .pips i.mall { border-radius: 1px; transform: rotate(45deg) scale(0.85); }
+.rl .rs { color: var(--muted); font-size: 10px; }
+.rl.close { border-width: 2px; }
+.rl.close .rs { color: #ffd34d; font-weight: 700; }
+.rl.mine .rs { color: var(--accent); font-weight: 700; }
+.cutmark { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: #2a0c12; color: #ff6b7a; font-size: 12px; font-weight: 700; border: 1px solid #ff6b7a; }
+.tag.cut { color: #ff6b7a; border-color: #ff6b7a; }
+.cutnote { font-style: normal; font-size: 11px; color: #ff6b7a; }
+.info .rrow { font-size: 12px; margin-top: 3px; }
+.info .muted { color: var(--muted); }
+.info .gold { color: #ffd34d; }
+@media (max-width: 640px) {
+  .rl { padding: 2px 6px; gap: 4px; font-size: 9px; }
+  .rl .rs { display: none; }
+  .rl.close .rs, .rl.mine .rs { display: inline; }
+  .rl .pips i { width: 6px; height: 6px; }
+}
+.legend .lg.region { height: 4px; border-radius: 2px; background: #f2c35a; box-shadow: 0 0 6px #f2c35a; }

@@ -4,7 +4,7 @@
 
 import { REGIONS, TERRITORIES } from './data.ts';
 import {
-  AMBUSH_COST, canAmbush, canAttack, connected, isMall, territoriesOf, type Action, type GameState,
+  AMBUSH_COST, canAmbush, canAttack, connected, isMall, supplied, territoriesOf, type Action, type GameState,
 } from './rules.ts';
 
 /** How much the AI wants to own territory t. */
@@ -26,9 +26,10 @@ function enemyNeighbours(s: GameState, t: number) {
   return s.adjacency[t].filter((j) => s.owner[j] !== s.current);
 }
 
+/** Best attack to build up for; only from turf that can be reinforced (has a supply line). */
 function bestTarget(s: GameState): { from: number; to: number; score: number } | null {
   let best: { from: number; to: number; score: number } | null = null;
-  for (const from of territoriesOf(s, s.current)) {
+  for (const from of supplied(s, s.current)) {
     for (const to of enemyNeighbours(s, from)) {
       const odds = s.members[from] / (s.members[to] * (isMall(to) ? 1.4 : 1) + 1);
       const score = value(s, to) * odds;
@@ -58,7 +59,7 @@ export function aiAction(s: GameState): Action {
       }
     }
     const target = bestTarget(s);
-    return { type: 'place', t: target ? target.from : territoriesOf(s, me)[0], n: s.reserves };
+    return { type: 'place', t: target ? target.from : [...supplied(s, me)][0], n: s.reserves };
   }
 
   if (s.phase === 'attack') {

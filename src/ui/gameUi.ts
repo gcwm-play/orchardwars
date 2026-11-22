@@ -1,6 +1,7 @@
 import { GANGS, MALLS_TO_WIN, PLAYER_GANGS, REGIONS, TERRITORIES, type GangId, type PlayerGang } from '../game/data.ts';
 import {
-  AMBUSH_COST, AMBUSH_STRIKE, MAX_AMBUSHES, canAmbush, canAttack, canMove, connected, mallsHeld, recruitsFor, territoriesOf,
+  AMBUSH_COST, AMBUSH_STRIKE, CUT_OFF_ATTACK_DICE, MAX_AMBUSHES, attackDiceFor, canAmbush, canAttack, canMove, connected, isCutOff,
+  mallsHeld, recruitsFor, territoriesOf,
   type Battle, type GameEvent, type GameState, type Recruits,
 } from '../game/rules.ts';
 import { aiAction } from '../game/ai.ts';
@@ -13,7 +14,7 @@ import { BattleView } from './battleView.ts';
 
 export interface UiHooks {
   /** Highlight territories on the map. */
-  highlight(selected: number | null, targets: number[]): void;
+  highlight(selected: number | null, targets: number[], emphasis?: number[]): void;
   /** Flash a territory (capture, battle). */
   pulse(t: number, strength?: number): void;
   /** Recolour the city after ownership changes. */
@@ -94,12 +95,16 @@ export class GameUi {
     const s = this.state;
     if (this.session.isHumanTurn) this.battleEl.classList.remove('show');
     if (t < 0) return this.clearSelection();
+    this.regionShown = null;
     this.showInfo(t);
     if (!this.session.isHumanTurn || s.occupy) return this.refresh();
     const me = s.human!;
 
     if (s.phase === 'recruit') {
-      if (this.ambushMode) {
+      if (s.owner[t] === me && isCutOff(s, t)) {
+        this.toast('Cut off: no supply line', 'This turf has no path through your territory to one of your strongholds, so it can’t be reinforced.');
+        this.ambushMode = false;
+      } else if (this.ambushMode) {
         if (canAmbush(s, t)) this.session.act({ type: 'ambush', t });
         this.ambushMode = false;
       } else if (s.owner[t] === me && s.reserves > 0) {
@@ -139,7 +144,31 @@ export class GameUi {
     /* the map shows hover itself; kept for future tooltips */
   }
 
+  /** Show a region: its territories lit up on the map and its details in the info card. */
+  showRegion(ri: number) {
+    const s = this.state;
+    const r = REGIONS[ri];
+    this.regionShown = ri;
+    const ts = TERRITORIES.map((t, i) => (t.region === r.id ? i : -1)).filter((i) => i >= 0);
+    const mine = s.human ? ts.filter((t) => s.owner[t] === s.human).length : 0;
+    const rows = ts
+      .map((t) => `<div class="rrow">${chip(s.owner[t])} ${TERRITORIES[t].kind === 'mall' ? '◆ ' : ''}${esc(TERRITORIES[t].name)} <span class="muted">${esc(nm(s.owner[t]))} · ${s.members[t]}</span></div>`)
+      .join('');
+    this.infoT = null;
+    this.info.innerHTML = `<div class="tn">${esc(r.name)} region</div>
+      <div class="real">Hold all ${ts.length} territories for <b class="gold">+${r.bonus}</b> members every turn.
+      ${s.human ? (mine === ts.length ? '<b>You hold it all.</b>' : `You hold ${mine} of ${ts.length}.`) : ''}</div>${rows}`;
+    this.info.classList.add('show');
+    clearTimeout(this.infoTimer);
+    if (innerWidth < 640) this.infoTimer = window.setTimeout(() => this.info.classList.remove('show'), 5000);
+    this.refresh();
+  }
+
+  /** The region being inspected (its territories are lifted on the map). */
+  private regionShown: number | null = null;
+
   private clearSelection() {
+    this.regionShown = null;
     this.selected = null;
     this.target = null;
     this.ambushMode = false;
@@ -330,7 +359,8 @@ export class GameUi {
     if (this.session.isHumanTurn && s.phase === 'recruit' && this.ambushMode) {
       targets = territoriesOf(s, me!).filter((t) => canAmbush(s, t));
     }
-    this.hooks.highlight(this.selected, this.target !== null ? [this.target] : targets);
+    const emphasis = this.regionShown === null ? [] : TERRITORIES.map((t, i) => (t.region === REGIONS[this.regionShown!].id ? i : -1)).filter((i) => i >= 0);
+    this.hooks.highlight(this.selected, this.target !== null ? [this.target] : targets, emphasis);
     this.currentTargets = this.target !== null ? [this.target] : targets;
 
     // Scoreboard.
@@ -385,7 +415,9 @@ export class GameUi {
       const amb = this.ambushMode
         ? `<div class="hint">Tap one of your <b>street</b> turfs to hide an ambush there (costs ${AMBUSH_COST}). Rivals who attack it lose ${AMBUSH_STRIKE} members before the fight.</div>`
         : '';
-      return `${head}<div class="phase"><b class="big">${s.reserves}</b> members to place. Tap your turf.</div>${this.breakdownHtml()}${amb}
+      const cut = territoriesOf(s, s.human!).filter((t) => isCutOff(s, t)).length;
+      const cutHint = cut ? `<div class="hint"><span class="cutmark">⊘</span> ${cut} of your turfs ${cut === 1 ? 'is' : 'are'} cut off from your strongholds: no recruits there, and they attack with ${CUT_OFF_ATTACK_DICE} dice at most.</div>` : '';
+      return `${head}<div class="phase"><b class="big">${s.reserves}</b> members to place. Tap your turf.</div>${this.breakdownHtml()}${cutHint}${amb}
         <div class="row">
           ${[1, 3, 0].map((n) => `<button data-act="amount" data-n="${n}" class="${this.amount === n ? 'on' : ''}">${n === 0 ? 'All' : `+${n}`}</button>`).join('')}
           <button data-act="ambush" class="${this.ambushMode ? 'on' : ''}" ${s.reserves < AMBUSH_COST || mine >= MAX_AMBUSHES ? 'disabled' : ''}>Ambush (${AMBUSH_COST})</button>
@@ -403,11 +435,12 @@ export class GameUi {
         const t = this.target;
         const mall = TERRITORIES[t].kind === 'mall';
         const from = this.selected;
-        const odds = this.odds(s.members[from], s.members[t], mall);
+        const cutOff = isCutOff(s, from);
+        const odds = this.odds(s.members[from], s.members[t], mall, cutOff ? CUT_OFF_ATTACK_DICE : 3);
         const tone = odds >= 0.7 ? 'good' : odds >= 0.4 ? 'even' : 'bad';
         body = `<div class="phase">${tname(from)} <b>${s.members[from]}</b> ⟶ ${tname(t)} <b>${s.members[t]}</b></div>
           <div class="matchup">
-            <span>You roll ${diceChip(attackDice(s.members[from]), 'att')} ${attackDice(s.members[from])}</span>
+            <span>You roll ${diceChip(attackDiceFor(s, from), 'att')} ${attackDiceFor(s, from)}${cutOff ? ' <em class="cutnote">⊘ cut off</em>' : ''}</span>
             <span>vs ${diceChip(defenceDice(s.members[t], mall), 'def')} ${defenceDice(s.members[t], mall)} ${mall ? '<em>stronghold +1 die</em>' : ''}</span>
             <span class="odds ${tone}" title="Chance a Blitz takes it">Blitz win ${Math.round(odds * 100)}%</span>
           </div>
@@ -443,9 +476,9 @@ export class GameUi {
   }
 
   private oddsCache = new Map<string, number>();
-  private odds(att: number, def: number, mall: boolean) {
-    const key = `${att}/${def}/${mall}`;
-    if (!this.oddsCache.has(key)) this.oddsCache.set(key, blitzOdds(att, def, mall));
+  private odds(att: number, def: number, mall: boolean, maxAttDice = 3) {
+    const key = `${att}/${def}/${mall}/${maxAttDice}`;
+    if (!this.oddsCache.has(key)) this.oddsCache.set(key, blitzOdds(att, def, mall, maxAttDice));
     return this.oddsCache.get(key)!;
   }
 
@@ -458,14 +491,16 @@ export class GameUi {
     const me = s.human;
     const myTurn = this.session.isHumanTurn;
     const attacking = myTurn && s.phase === 'attack' && !s.occupy;
+    const cut = new Set(TERRITORIES.map((_, t) => t).filter((t) => isCutOff(s, t)));
     return TERRITORIES.map((def, t) => {
       let html = '';
       if (def.kind === 'mall') html += `<span class="inc" title="Pays its holder +${def.income} members per turn">+${def.income}</span>`;
+      if (cut.has(t)) html += `<span class="cutmark" title="Cut off: no supply line to a stronghold. Can't be reinforced; attacks with ${CUT_OFF_ATTACK_DICE} dice at most.">⊘</span>`;
       if (!me || s.phase === 'over') return html;
       const mine = s.owner[t] === me;
       const border = mine && s.adjacency[t].some((j) => s.owner[j] !== me);
       if (attacking) {
-        if (mine && border && s.members[t] >= 2 && (this.selected === null || this.selected === t)) html += diceChip(attackDice(s.members[t]), 'att');
+        if (mine && border && s.members[t] >= 2 && (this.selected === null || this.selected === t)) html += diceChip(attackDiceFor(s, t), 'att');
         if (this.currentTargets.includes(t)) html += diceChip(defenceDice(s.members[t], isMallT(t)), 'def');
       } else if (border) {
         html += diceChip(defenceDice(s.members[t], isMallT(t)), 'def');
@@ -499,9 +534,10 @@ export class GameUi {
       ? `<span class="tag">Stronghold · +${d.income} members/turn · defends with 3 dice</span>`
       : `<span class="tag">Street · ambush ground</span>`;
     const ambush = s.ambush[t] && s.ambush[t] === s.human ? `<span class="tag warn">Your ambush is hidden here</span>` : '';
+    const cutTag = isCutOff(s, t) ? `<span class="tag cut">⊘ Cut off from its strongholds: no recruits, max ${CUT_OFF_ATTACK_DICE} attack dice</span>` : '';
     this.info.innerHTML = `<div class="tn">${esc(d.name)}</div><div class="real">${esc(d.real)}</div>
       <div class="real">${esc(region.name)} region: +${region.bonus}/turn if you hold all of it</div>
-      <div>${chip(owner)} ${gname(owner)} · <b>${s.members[t]}</b> members</div>${kind}${ambush}`;
+      <div>${chip(owner)} ${gname(owner)} · <b>${s.members[t]}</b> members</div>${kind}${cutTag}${ambush}`;
     this.info.classList.add('show');
     // On phones the card is a brief peek, so it doesn't sit over the map.
     clearTimeout(this.infoTimer);

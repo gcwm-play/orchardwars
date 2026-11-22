@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GANGS, TERRITORIES, type GangId } from '../game/data.ts';
+import { GANGS, REGIONS, TERRITORIES, type GangId } from '../game/data.ts';
 import type { TerritoryMap } from './territoryMap.ts';
 
 // Who owns what, on the graphics card. Two small textures drive every turf colour:
@@ -17,7 +17,7 @@ export class Turf {
     uTurfTexel: { value: THREE.Vector2 };
     uTime: { value: number };
   };
-  private readonly state = new Uint8Array(WIDTH * 2 * 4);
+  private readonly state = new Uint8Array(WIDTH * 3 * 4);
   private readonly stateTex: THREE.DataTexture;
   private readonly flash = new Float32Array(WIDTH);
   private readonly color = new THREE.Color();
@@ -26,10 +26,12 @@ export class Turf {
     const ids = new THREE.DataTexture(map.ids, map.cols, map.rows, THREE.RedFormat, THREE.UnsignedByteType);
     ids.magFilter = ids.minFilter = THREE.NearestFilter;
     ids.needsUpdate = true;
-    this.stateTex = new THREE.DataTexture(this.state, WIDTH, 2, THREE.RGBAFormat, THREE.UnsignedByteType);
+    this.stateTex = new THREE.DataTexture(this.state, WIDTH, 3, THREE.RGBAFormat, THREE.UnsignedByteType);
     this.stateTex.magFilter = this.stateTex.minFilter = THREE.NearestFilter;
     // Row 1, alpha: 255 for strongholds (drawn with stripes and a brighter border).
     TERRITORIES.forEach((t, i) => (this.state[(WIDTH + i) * 4 + 3] = t.kind === 'mall' ? 255 : 0));
+    // Row 2, red: region index (for the golden region borders).
+    TERRITORIES.forEach((t, i) => (this.state[(WIDTH * 2 + i) * 4] = REGIONS.findIndex((r) => r.id === t.region)));
     this.stateTex.needsUpdate = true;
     this.uniforms = {
       uTurfIds: { value: ids },
@@ -55,13 +57,16 @@ export class Turf {
     this.flash[t] = Math.max(this.flash[t], strength);
   }
 
-  /** selected: chosen territory; targets: where it can attack or move to. */
-  setHighlight(selected: number | null, targets: number[], hover: number | null) {
+  /**
+   * selected: chosen territory; targets: where it can attack or move to;
+   * emphasis: territories to lift gently (e.g. a region the player is looking at).
+   */
+  setHighlight(selected: number | null, targets: number[], emphasis: number[] = []) {
     for (let i = 0; i < TERRITORIES.length; i++) {
       const o = (WIDTH + i) * 4;
       this.state[o] = i === selected ? 255 : 0;
       this.state[o + 1] = targets.includes(i) ? 255 : 0;
-      this.state[o + 2] = i === hover ? 255 : 0;
+      this.state[o + 2] = emphasis.includes(i) ? 255 : 0;
     }
     this.stateTex.needsUpdate = true;
   }
@@ -101,8 +106,10 @@ varying vec3 vTurfPos;
 
 vec2 turfUv(vec2 xz) { return (xz - uTurfRect.xy) / uTurfRect.zw; }
 float turfIdAt(vec2 uv) { return floor(texture2D(uTurfIds, uv).r * 255.0 + 0.5); }
-vec4 turfOwner(float id) { return texture2D(uTurfState, vec2((id + 0.5) / ${WIDTH}.0, 0.25)); }
-vec4 turfFlags(float id) { return texture2D(uTurfState, vec2((id + 0.5) / ${WIDTH}.0, 0.75)); }
+vec4 turfOwner(float id) { return texture2D(uTurfState, vec2((id + 0.5) / ${WIDTH}.0, 0.5 / 3.0)); }
+vec4 turfFlags(float id) { return texture2D(uTurfState, vec2((id + 0.5) / ${WIDTH}.0, 1.5 / 3.0)); }
+float turfRegion(float id) { return floor(texture2D(uTurfState, vec2((id + 0.5) / ${WIDTH}.0, 2.5 / 3.0)).r * 255.0 + 0.5); }
+float regionAt(vec2 uv) { return turfRegion(turfIdAt(uv)); }
 
 // Ground-level turf: tint, glowing borders, and highlights. Returns emissive; tints diffuse in place.
 vec3 turfGround(inout vec3 diffuse, float tintAmount) {
@@ -126,7 +133,20 @@ vec3 turfGround(inout vec3 diffuse, float tintAmount) {
   float pulse = 0.55 + 0.45 * sin(uTime * 4.0);
   glow += vec3(1.0) * flags.r * 0.22 * pulse;            // selected
   glow += vec3(1.0, 0.25, 0.3) * flags.g * 0.2 * pulse;  // valid target
-  glow += owner * flags.b * 0.15;                        // hover
+  glow += (owner * 0.12 + vec3(0.04)) * flags.b * pulse;  // emphasis (a region being inspected)
+  // Region borders: a thick golden line wherever two regions meet.
+  float reg = turfRegion(id);
+  float rb = 0.0;
+  for (int k = 1; k <= 3; k++) {
+    vec2 o = uTurfTexel * float(k);
+    rb += step(0.5, abs(regionAt(uv + vec2(o.x, 0.0)) - reg));
+    rb += step(0.5, abs(regionAt(uv - vec2(o.x, 0.0)) - reg));
+    rb += step(0.5, abs(regionAt(uv + vec2(0.0, o.y)) - reg));
+    rb += step(0.5, abs(regionAt(uv - vec2(0.0, o.y)) - reg));
+  }
+  rb = min(rb, 1.0);
+  diffuse = mix(diffuse, vec3(0.85, 0.62, 0.22), rb * 0.8);
+  glow += vec3(0.9, 0.6, 0.18) * rb * 0.22;
   glow += owner * turfOwner(id).a * 0.35;                // capture flash
   return glow;
 }

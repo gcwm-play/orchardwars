@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GANGS, TERRITORIES } from '../game/data.ts';
+import { GANGS, REGIONS, TERRITORIES } from '../game/data.ts';
 import type { GameState } from '../game/rules.ts';
 import { anchors } from '../world/territoryMap.ts';
 import type { MapData } from '../world/mapData.ts';
@@ -121,6 +121,69 @@ export class StreetNames {
       const x = (this.v.x * 0.5 + 0.5) * width;
       const y = (-this.v.y * 0.5 + 0.5) * height;
       const off = x < -100 || y < -20 || x > width + 100 || y > height + 20;
+      el.style.display = off ? 'none' : '';
+      if (!off) el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%)`;
+    });
+  }
+}
+
+/**
+ * A label for every region: its name, its bonus, one pip per territory in its owner's colour,
+ * and how close you are to holding all of it. Tapping it shows the region in the info card.
+ */
+export class RegionLabels {
+  private readonly els: HTMLButtonElement[] = [];
+  private readonly pos: THREE.Vector3[] = [];
+  private readonly v = new THREE.Vector3();
+  private shown = '';
+
+  constructor(root: HTMLElement, onTap: (region: number) => void) {
+    const layer = document.createElement('div');
+    layer.className = 'regions';
+    root.appendChild(layer);
+    REGIONS.forEach((r, ri) => {
+      const ts = TERRITORIES.map((t, i) => (t.region === r.id ? i : -1)).filter((i) => i >= 0);
+      const x = ts.reduce((a, t) => a + anchors[t][0], 0) / ts.length;
+      const z = ts.reduce((a, t) => a + anchors[t][1], 0) / ts.length;
+      this.pos.push(new THREE.Vector3(x, 0, z));
+      const b = document.createElement('button');
+      b.className = 'rl';
+      b.title = `${r.name} region: hold all ${ts.length} territories for +${r.bonus} members per turn`;
+      b.innerHTML = `<span class="rn">${r.name}</span><span class="rb">+${r.bonus}</span><span class="pips"></span><span class="rs"></span>`;
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onTap(ri);
+      });
+      layer.appendChild(b);
+      this.els.push(b);
+    });
+  }
+
+  sync(s: GameState, me: string | null) {
+    const key = JSON.stringify(s.owner);
+    if (key === this.shown) return;
+    this.shown = key;
+    REGIONS.forEach((r, ri) => {
+      const ts = TERRITORIES.map((t, i) => (t.region === r.id ? i : -1)).filter((i) => i >= 0);
+      const el = this.els[ri];
+      el.querySelector('.pips')!.innerHTML = ts.map((t) => `<i style="--c:${GANGS[s.owner[t]].color}" class="${TERRITORIES[t].kind}"></i>`).join('');
+      const mine = me ? ts.filter((t) => s.owner[t] === me).length : 0;
+      const left = ts.length - mine;
+      // Whoever holds the whole region gets the label in their colour.
+      const holder = ts.every((t) => s.owner[t] === s.owner[ts[0]]) && s.owner[ts[0]] !== 'neutral' ? s.owner[ts[0]] : null;
+      el.style.setProperty('--c', holder ? GANGS[holder].color : '#ffd27a');
+      el.querySelector('.rs')!.textContent = left === 0 ? 'yours' : mine > 0 ? `${left} to go` : holder ? GANGS[holder].name : '';
+      el.classList.toggle('mine', left === 0);
+      el.classList.toggle('close', left > 0 && left <= 2 && mine > 0);
+    });
+  }
+
+  update(camera: THREE.Camera, width: number, height: number, visible: boolean) {
+    this.els.forEach((el, i) => {
+      this.v.copy(this.pos[i]).project(camera);
+      const x = (this.v.x * 0.5 + 0.5) * width;
+      const y = (-this.v.y * 0.5 + 0.5) * height;
+      const off = !visible || x < -80 || y < -40 || x > width + 80 || y > height + 40;
       el.style.display = off ? 'none' : '';
       if (!off) el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%)`;
     });

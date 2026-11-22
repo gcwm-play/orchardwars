@@ -54,11 +54,14 @@ attacks, but the rich centre (Orchard, the Civic District, Marina) is heavily de
 | --- | --- | --- |
 | Tanglin (NW) | Thorn Syndicate | Next to ION Orchard and Ngee Ann City, the richest and best-guarded malls |
 | Bugis (NE) | Kopi Kartel | No rival on its border at the start |
-| Raffles Place (SE) | River Tide | Two strongholds, river as a moat; +6 opening recruits |
-| Tiong Bahru (SW) | Chrome Kampong | Rivals on two sides; +7 opening recruits |
+| Raffles Place (SE) | River Tide | Two strongholds, river as a moat; +5 opening recruits |
+| Tiong Bahru (SW) | Chrome Kampong | Rivals on two sides; +6 opening recruits |
 
 ## Reading the map
 
+- **Regions** are outlined with thick gold lines. Each has a label with its bonus, one pip per territory in
+  its owner's colour, and your progress ("2 to go", "yours"). Tap a label to list who holds what; its
+  territories light up on the map.
 - **Strongholds** are diamonds with a gold `+N` income tag. Their territory is striped, and their real
   buildings glow.
 - **Streets** are round badges.
@@ -97,6 +100,11 @@ attacks, but the rich centre (Orchard, the Civic District, Marina) is heavily de
    - Clear a turf and you take it: its buildings switch to your colour, and you choose how many
      members move in.
    - Wipe out a gang's last turf and that gang is out.
+   - **Supply lines:** a turf is *supplied* if it connects, through your own territory, to a stronghold
+     you hold. **Cut-off** turf (⊘ on the map) can't receive recruits or ambushes, and attacks with at most
+     **2 dice**; its defence is unchanged. A gang with no strongholds counts everything as supplied. Classic
+     Risk has no such rule: you may drop reinforcements on any territory, even an isolated one. This rule
+     stops that, and makes cutting a rival's lines a real tactic.
 3. **Move.** Once per turn, move members between two of your turfs connected through your own
    territory.
 
@@ -105,8 +113,8 @@ attacks, but the rich centre (Orchard, the Civic District, Marina) is heavily de
 ## Balance
 
 `tests/rules.test.ts` plays full computer-vs-computer games. Over 400 such games with the current
-numbers, the four gangs win **19–30%** of the time each, and a game lasts a median of
-**21 rounds** (10th–90th percentile: 15–32). Ambushes get set in most games and sprung about 80% of the time.
+numbers (including supply lines), the four gangs win **19–31%** of the time each, and a game lasts a
+median of **19 rounds** (10th–90th percentile: 13–31). Ambushes get set in most games and sprung about 80% of the time.
 
 Levers that were tuned, and what each fixed:
 
