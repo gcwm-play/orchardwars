@@ -1,7 +1,9 @@
 // Online play, modelled on the merchant game's multiplayer: the host's browser is the referee.
 // It keeps the real game, applies every move, runs the computer gangs and anyone who drops out,
 // and publishes the result. Other players send their moves as "intents" and watch the published
-// game. Unlike a peer-to-peer room, everything lives in one Firestore document, so the game
+// game. To feel instant, a player's browser also applies its own moves straight away: the rules
+// are deterministic (the dice are seeded in the game state), so it gets exactly the result the
+// host will publish. The host stays the referee; if the two ever disagree, the host's game wins. Unlike a peer-to-peer room, everything lives in one Firestore document, so the game
 // survives the host's tab closing: any player can take over as host and carry on.
 
 import { GANGS, PLAYER_GANGS, type GangId, type PlayerGang } from '../game/data.ts';
@@ -24,6 +26,8 @@ interface Seat {
 }
 
 type Intent = { n: number; a: Action | { type: 'undo' } };
+/** A group of events in the published log, tagged with the player move (if any) that caused it. */
+type EventGroup = { by?: string; n?: number; ev: GameEvent[] };
 
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const genCode = () => Array.from({ length: 5 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
@@ -98,9 +102,9 @@ export class NetSession implements GameSession {
   private acks: Record<string, number> = {};
   private beatSeen = new Map<string, { value: unknown; at: number }>();
   private undoStack: string[] = [];
-  private log: { seq: number; events: string }[] = [];
+  private log: { seq: number; groups: string }[] = [];
   private seq = 0;
-  private pending: GameEvent[] = [];
+  private pending: EventGroup[] = [];
   private publishTimer = 0;
   private lastPublish = 0;
   private deadline = 0;
@@ -108,6 +112,8 @@ export class NetSession implements GameSession {
 
   // Client bookkeeping.
   private lastSeq = -1;
+  /** Snapshots for undoing this player's own deployments locally (mirrors the host's). */
+  private localUndo: string[] = [];
   private intentN = 0;
   private intents: Intent[] = [];
   private remainingAt: { ms: number | null; at: number } = { ms: null, at: 0 };
@@ -275,9 +281,7 @@ export class NetSession implements GameSession {
 
   get undoCount() {
     if (!this.isHumanTurn) return 0;
-    if (this.role === 'host') return this.undoStack.length;
-    const u = this.doc?.undo as { gang: string; count: number } | undefined;
-    return u && u.gang === this.myGang ? u.count : 0;
+    return this.role === 'host' ? this.undoStack.length : this.localUndo.length;
   }
 
   act(action: Action) {
@@ -319,22 +323,22 @@ export class NetSession implements GameSession {
 
   // --- Host: applying moves ---------------------------------------------------------------
 
-  private applyAuth(action: Action, byHuman: boolean) {
+  private applyAuth(action: Action, byHuman: boolean, by?: { token: string; n: number }) {
     const s = this.auth!;
     const before = byHuman && UNDOABLE.has(action.type) ? strip(s) : null;
     const events = apply(s, action);
     if (before) this.undoStack.push(before);
     else this.undoStack = [];
     if (events.some((e) => e.type === 'turn')) this.resetTurnClock();
-    this.queue(events);
+    this.queue(events, by);
     this.emit(events);
   }
 
-  private undoAuth() {
+  private undoAuth(by?: { token: string; n: number }) {
     const snap = this.undoStack.pop();
     if (!snap || !this.auth) return;
     this.auth = { ...(JSON.parse(snap) as GameState), adjacency: this.adjacency, human: this.myGang };
-    this.queue([]);
+    this.queue([], by);
     this.emit([]);
   }
 
@@ -363,14 +367,15 @@ export class NetSession implements GameSession {
         const s = this.auth;
         if (!s || !seat?.gang || s.current !== seat.gang || this.covered(seat.gang)) continue;
         try {
-          if (it.a.type === 'undo') this.undoAuth();
-          else this.applyAuth(it.a, true);
+          if (it.a.type === 'undo') this.undoAuth({ token, n: it.n });
+          else this.applyAuth(it.a, true, { token, n: it.n });
         } catch (e) {
           console.warn('Ignored a move', it.a, e);
         }
       }
     }
-    if (changed) this.schedulePublish();
+    // Answer players straight away: their screens are waiting for the confirmation.
+    if (changed) this.schedulePublish(true);
   }
 
   private processJoins(doc: RoomDoc) {
@@ -419,15 +424,22 @@ export class NetSession implements GameSession {
 
   // --- Host: publishing -------------------------------------------------------------------
 
-  private queue(events: GameEvent[]) {
-    this.pending.push(...events);
+  private queue(events: GameEvent[], by?: { token: string; n: number }) {
+    this.pending.push(by ? { by: by.token, n: by.n, ev: events } : { ev: events });
     this.schedulePublish();
   }
 
-  /** Publish at most about twice a second; batches fast moves (Firestore likes ~1 write/s per doc). */
-  private schedulePublish() {
-    if (this.publishTimer) return;
-    const wait = Math.max(0, 450 - (Date.now() - this.lastPublish));
+  /**
+   * Publish soon. Computer moves are batched to about twice a second (Firestore prefers ~1 write/s
+   * per document); answers to players' moves go out almost at once (urgent).
+   */
+  private schedulePublish(urgent = false) {
+    const gap = urgent ? 120 : 450;
+    const wait = Math.max(0, gap - (Date.now() - this.lastPublish));
+    if (this.publishTimer) {
+      if (!urgent) return;
+      clearTimeout(this.publishTimer);
+    }
     this.publishTimer = window.setTimeout(() => {
       this.publishTimer = 0;
       this.publishNow();
@@ -449,7 +461,7 @@ export class NetSession implements GameSession {
     if (this.auth) {
       if (this.pending.length) {
         this.seq++;
-        this.log = [...this.log, { seq: this.seq, events: JSON.stringify(this.pending) }].slice(-LOG_KEEP);
+        this.log = [...this.log, { seq: this.seq, groups: JSON.stringify(this.pending) }].slice(-LOG_KEEP);
         this.pending = [];
       }
       fields.state = strip(this.auth);
@@ -495,6 +507,29 @@ export class NetSession implements GameSession {
   // --- Client -----------------------------------------------------------------------------
 
   private sendIntent(a: Intent['a']) {
+    // Apply the move here first, so the player sees it at once; the host repeats it as referee.
+    if (this.auth && this.isHumanTurn) {
+      let events: GameEvent[] = [];
+      try {
+        if (a.type === 'undo') {
+          const snap = this.localUndo.pop();
+          if (!snap) return;
+          this.auth = { ...(JSON.parse(snap) as GameState), adjacency: this.adjacency, human: this.myGang };
+        } else {
+          const before = UNDOABLE.has(a.type) ? strip(this.auth) : null;
+          events = apply(this.auth, a);
+          if (before) this.localUndo.push(before);
+          else this.localUndo = [];
+        }
+      } catch (e) {
+        // Not a legal move: don't send it.
+        this.status = (e as Error).message;
+        this.emit([]);
+        return;
+      }
+      this.status = '';
+      this.emit(events);
+    }
     this.intents = [...this.intents, { n: ++this.intentN, a }].slice(-20);
     this.store.update(this.code, { [`intents.${this.me.token}`]: JSON.stringify(this.intents) }).catch((e) => {
       this.status = `Couldn't send your move: ${e.message}`;
@@ -534,18 +569,28 @@ export class NetSession implements GameSession {
       }
     }
     this.remainingAt = { ms: (doc.remaining as number | null) ?? null, at: Date.now() };
-    if (typeof doc.state === 'string') {
+    // While the host hasn't yet handled all our moves, keep showing our own (predicted) game:
+    // the host's copy is a step behind and would make the board jump back.
+    const acked = ((doc.acks as Record<string, number>) ?? {})[this.me.token] ?? 0;
+    if (typeof doc.state === 'string' && (this.auth === null || acked >= this.intentN)) {
       const st = JSON.parse(doc.state) as GameState;
       st.adjacency = this.adjacency;
       st.human = this.myGang;
       if (st.phase === 'over') this.finished = true;
       const first = this.auth === null;
+      // Our prediction matched the referee: keep our undo steps. Otherwise trust the host.
+      if (first || strip(st) !== strip(this.auth!)) this.localUndo = [];
       this.auth = st;
       const seq = (doc.seq as number) ?? 0;
       const events: GameEvent[] = [];
       if (first) this.lastSeq = seq; // start from now; the board itself shows what came before
-      for (const b of (doc.log as { seq: number; events: string }[]) ?? []) {
-        if (b.seq > this.lastSeq) events.push(...(JSON.parse(b.events) as GameEvent[]));
+      for (const b of (doc.log as { seq: number; groups?: string }[]) ?? []) {
+        if (b.seq <= this.lastSeq || typeof b.groups !== 'string') continue;
+        for (const g of JSON.parse(b.groups) as EventGroup[]) {
+          // Skip the results of our own moves: we already showed them when we made them.
+          if (g.by === this.me.token) continue;
+          events.push(...g.ev);
+        }
       }
       this.lastSeq = seq;
       if (!first) this.emit(events);
@@ -561,7 +606,7 @@ export class NetSession implements GameSession {
     if (!this.seats.some((s) => s.token === this.me.token)) this.seats.push({ token: this.me.token, name: this.me.name, gang: null, host: true });
     this.settings = (doc.settings as NetSettings) ?? this.settings;
     this.acks = { ...((doc.acks as Record<string, number>) ?? {}) };
-    this.log = (doc.log as { seq: number; events: string }[]) ?? [];
+    this.log = ((doc.log as { seq: number; groups?: string }[]) ?? []).filter((b) => typeof b.groups === 'string') as { seq: number; groups: string }[];
     this.seq = (doc.seq as number) ?? 0;
     if (typeof doc.state === 'string') {
       this.auth = { ...(JSON.parse(doc.state) as GameState), adjacency: this.adjacency };

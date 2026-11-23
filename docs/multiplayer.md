@@ -13,6 +13,13 @@ PeerJS as the messenger:
 - **Players send their moves as intents** (place, ambush, attack, move, undo, end turn). The host
   checks each one against the rules and the turn order before applying it, so a player can only move
   their own gang on their own turn.
+- **Moves feel instant for everyone.** A player's browser applies their own move straight away,
+  without waiting for the host. The rules are deterministic, with the dice seeded in the game
+  state, so it gets exactly the result the host will publish. The host still repeats and checks the
+  move; the published log tags each result with the move that caused it, so players skip results
+  they've already seen. If the two ever disagree (say the turn timer ran out first), the host's game
+  wins and the player's board corrects itself. The host also answers players' moves at once rather
+  than batching them.
 - **One Firestore document per room** in the `orchardwars` collection; its id is the 5-letter room code.
   The host writes the game state, an event log (so everyone sees the dice and battles play out), the
   seats and the settings. Each player writes only their own fields: `joins.<id>`, `intents.<id>` and a
