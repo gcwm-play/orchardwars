@@ -55,9 +55,23 @@ those), then press **Publish**:
     }
 ```
 
-Optional: rooms are small (a few KB) but they pile up. To clear old ones automatically, add a
-**TTL policy** (Firestore → **TTL**) on the `orchardwars` collection using the `expiresAt` field
-(the host refreshes it with every write, two weeks ahead).
+## Cleaning up old rooms
+
+Rooms are small (5–20 KB), and leftovers cost next to nothing: nothing breaks and nothing slows
+down if they stay. They do clutter the console, and abandoned games stay rejoinable. Every room
+carries an `expiresAt` date for automatic cleanup:
+
+| Room | Deleted after | Why |
+| --- | --- | --- |
+| Still in play or abandoned | 16 days without any activity (14 + 2 days' buffer) | Every write, including the heartbeat every 10 s while someone has it open, pushes the date forward, so a game in use is never deleted |
+| Finished | 3 days after the game ends (1 + 2 days' buffer) | Heartbeats stop when the game ends, so the date stops moving |
+
+The numbers live in `ROOM_TTL_DAYS` and `FINISHED_TTL_DAYS` in `src/net/store.ts`.
+
+To turn deletion on (one time): Firebase console → **Firestore Database** → **TTL** → **Create
+policy**, collection group `orchardwars`, timestamp field `expiresAt`. Firestore then deletes each room
+some time after its date passes (usually within a day). Rooms created before 23 Nov 2026 have no
+`expiresAt` and are never deleted automatically; remove those by hand if you like.
 
 ## Fair play
 

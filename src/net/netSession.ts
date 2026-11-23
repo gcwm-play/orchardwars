@@ -7,7 +7,7 @@
 import { GANGS, PLAYER_GANGS, type GangId, type PlayerGang } from '../game/data.ts';
 import { apply, newGame, type Action, type GameEvent, type GameState } from '../game/rules.ts';
 import { UNDOABLE, type GameSession, type NetView } from '../game/session.ts';
-import type { RoomDoc, RoomStore } from './store.ts';
+import { FINISHED_TTL_DAYS, type RoomDoc, type RoomStore } from './store.ts';
 
 export interface NetSettings {
   /** Seconds per human turn; 0 = no timer. */
@@ -169,7 +169,11 @@ export class NetSession implements GameSession {
     this.timers.push(window.setInterval(() => this.beat(), BEAT_MS));
   }
 
+  /** The game has ended: stop heartbeats, so they don't push the room's expiry date out again. */
+  private finished = false;
+
   private beat() {
+    if (this.finished) return;
     const field = this.role === 'host' ? { hostBeat: Date.now() } : { [`beats.${this.me.token}`]: Date.now() };
     this.store.update(this.code, field).catch(() => {});
   }
@@ -454,10 +458,12 @@ export class NetSession implements GameSession {
       fields.undo = { gang: this.auth.current, count: this.undoStack.length };
       if (this.auth.phase === 'over') {
         fields.status = 'over';
+        this.finished = true;
         rememberRoom(null);
       }
     }
-    this.store.update(this.code, fields).catch((e) => {
+    // A finished game's room expires sooner (FINISHED_TTL_DAYS) than an abandoned one.
+    this.store.update(this.code, fields, this.finished ? { expiresInDays: FINISHED_TTL_DAYS } : undefined).catch((e) => {
       this.status = `Couldn't save the game online: ${e.message}`;
       this.emitLobby();
     });
@@ -532,6 +538,7 @@ export class NetSession implements GameSession {
       const st = JSON.parse(doc.state) as GameState;
       st.adjacency = this.adjacency;
       st.human = this.myGang;
+      if (st.phase === 'over') this.finished = true;
       const first = this.auth === null;
       this.auth = st;
       const seq = (doc.seq as number) ?? 0;

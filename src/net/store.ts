@@ -13,13 +13,24 @@ export interface RoomStore {
   get(code: string): Promise<RoomDoc | null>;
   /** Create or replace a room. */
   create(code: string, data: RoomDoc): Promise<void>;
-  /** Update some fields; keys may be dotted paths ("intents.abc"). */
-  update(code: string, fields: RoomDoc): Promise<void>;
+  /**
+   * Update some fields; keys may be dotted paths ("intents.abc"). Each write also pushes the room's
+   * expiry date forward: ROOM_TTL_DAYS by default, or opts.expiresInDays (e.g. for a finished game).
+   */
+  update(code: string, fields: RoomDoc, opts?: { expiresInDays?: number }): Promise<void>;
   /** Watch a room; returns an unsubscribe function. */
   watch(code: string, cb: (doc: RoomDoc | null) => void, onError?: (e: Error) => void): () => void;
 }
 
 export const COLLECTION = 'orchardwars';
+
+/**
+ * Rooms carry an `expiresAt` date so a Firestore TTL policy can delete them (docs/multiplayer.md).
+ * Abandoned rooms: 14 days after the last activity, plus a 2-day buffer.
+ * Finished games: 1 day after the end, plus a 2-day buffer.
+ */
+export const ROOM_TTL_DAYS = 16;
+export const FINISHED_TTL_DAYS = 3;
 
 // --- Firestore ---------------------------------------------------------------------------
 
@@ -41,7 +52,7 @@ export async function firestoreStore(): Promise<RoomStore> {
   const db = fs.getFirestore(app);
   const ref = (code: string) => fs.doc(db, COLLECTION, code);
   // Lets a Firestore TTL policy clear rooms nobody has touched for two weeks (docs/multiplayer.md).
-  const expiry = () => fs.Timestamp.fromMillis(Date.now() + 14 * 24 * 3600 * 1000);
+  const expiry = (days = ROOM_TTL_DAYS) => fs.Timestamp.fromMillis(Date.now() + days * 24 * 3600 * 1000);
   return {
     async get(code) {
       const snap = await fs.getDoc(ref(code));
@@ -50,8 +61,8 @@ export async function firestoreStore(): Promise<RoomStore> {
     async create(code, data) {
       await fs.setDoc(ref(code), { ...data, updatedAt: fs.serverTimestamp(), expiresAt: expiry() });
     },
-    async update(code, fields) {
-      await fs.updateDoc(ref(code), { ...fields, updatedAt: fs.serverTimestamp(), expiresAt: expiry() });
+    async update(code, fields, opts) {
+      await fs.updateDoc(ref(code), { ...fields, updatedAt: fs.serverTimestamp(), expiresAt: expiry(opts?.expiresInDays) });
     },
     watch(code, cb, onError) {
       return fs.onSnapshot(
