@@ -34,9 +34,9 @@ interface in `src/game/session.ts`, which single-player and online sessions both
 ## Firebase setup (one time)
 
 The game uses the Firebase project `cpf-induction-escape-room` (shared with the induction escape
-room). Firestore only accepts writes that its **security rules** allow, and the current rules don't
-cover Orchard Wars yet, so online play shows "The online server refused the connection" until this is
-added.
+room). Firestore only accepts writes that its **security rules** allow. **This was set up on
+23 Nov 2026** and checked with a real two-player game. The block below is kept for reference, e.g. if
+the rules are ever reset. Without it, online play shows "The online server refused the connection".
 
 In the [Firebase console](https://console.firebase.google.com/) → project **cpf-induction-escape-room** →
 **Firestore Database** → **Rules**, add this block **inside** the existing
