@@ -37,4 +37,7 @@ Rules and balance: docs/game-design.md.
 - Territories use their real Singapore names, malls included (the owner asked for this; see the
   Names section of `docs/map-research.md` before any commercial release).
 - Keep the OpenStreetMap credit visible in the game.
+- `walk.html` / `src/walk/` is a separate first-person rainy walk on Orchard Road (three.js WebGPU renderer + TSL,
+  WebGL 2 fallback). Its look is in `src/walk/look.ts`. `npm run shot` includes `walk*` views; headless Chromium
+  has no WebGPU, so those show the WebGL 2 path.
 - Game content (gangs, regions, territories) lives in `src/game/data.ts`, not in rendering code.

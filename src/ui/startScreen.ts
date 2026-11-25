@@ -12,6 +12,12 @@ export type StartChoice =
   | { online: 'host'; name: string }
   | { online: 'join'; name: string; code: string };
 
+/** Link to the rainy street walk (walk.html). The single-file build has no second page, so it skips it. */
+function walkLink() {
+  if ((globalThis as { __ORCHARD_MAP__?: unknown }).__ORCHARD_MAP__) return '';
+  return '<a class="walk-link" href="./walk.html">Interlude: a rainy night walk down Orchard Road →</a>';
+}
+
 export function startScreen(root: HTMLElement, canResume: boolean, opts: { room?: string | null; error?: string } = {}): Promise<StartChoice> {
   return new Promise((resolve) => {
     const el = document.createElement('div');
@@ -62,6 +68,7 @@ export function startScreen(root: HTMLElement, canResume: boolean, opts: { room?
               The grey Civic Guard holds the centre: it never attacks, but it digs in.</li>
           </ol>
         </details>
+        ${walkLink()}
         <p class="credit">Map data © OpenStreetMap contributors</p>
       </div>`;
     root.appendChild(el);

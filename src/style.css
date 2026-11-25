@@ -165,6 +165,8 @@ button { font: inherit; color: inherit; }
 .start summary { cursor: pointer; color: var(--accent); font-weight: 700; }
 .start li { margin: 6px 0; }
 .start .credit { font-size: 10px; color: var(--muted); margin: 14px 0 0; }
+.start .walk-link { display: block; margin: 16px 0 0; font-size: 13px; color: var(--accent); text-decoration: none; }
+.start .walk-link:hover { text-decoration: underline; }
 .win .big { font-size: 32px; font-weight: 700; text-transform: uppercase; }
 
 @media (max-width: 640px) {

@@ -14,7 +14,7 @@ import { createRequire } from 'node:module';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const { chromium } = createRequire(import.meta.url)('playwright') as any;
 
-const VIEWS: { name: string; query: string; width?: number; height?: number; scale?: number; wait?: number }[] = [
+const VIEWS: { name: string; query: string; page?: string; width?: number; height?: number; scale?: number; wait?: number }[] = [
   { name: 'title', query: '' },
   { name: 'briefing', query: 'gang=chrome&brief=1&name=Void%20Deck%20Kings&seed=7' },
   { name: 'overview', query: 'gang=thorn&seed=7' },
@@ -22,6 +22,10 @@ const VIEWS: { name: string; query: string; width?: number; height?: number; sca
   { name: 'civic-close', query: 'gang=thorn&seed=7&x=1200&z=350&zoom=330' },
   { name: 'phone', query: 'gang=thorn&seed=7', width: 390, height: 844, scale: 2 },
   { name: 'phone-briefing', query: 'gang=tide&brief=1&seed=7', width: 390, height: 844, scale: 2 },
+  // The rainy street walk (walk.html). Headless Chromium has no WebGPU, so these show the WebGL 2 fallback.
+  { name: 'walk', page: 'walk.html', query: 'auto=1&fixed=1&t=0.3' },
+  { name: 'walk-across', page: 'walk.html', query: 'auto=1&fixed=1&t=0.55&yaw=-55' },
+  { name: 'walk-phone', page: 'walk.html', query: 'fixed=1&t=0.1', width: 390, height: 844, scale: 2 },
 ];
 
 const argUrl = process.argv.indexOf('--url');
@@ -54,7 +58,7 @@ for (const v of VIEWS) {
   });
   page.on('pageerror', (e: Error) => console.error(`[${v.name}] ${e.message}`));
   page.on('console', (m: { type(): string; text(): string }) => m.type() === 'error' && console.error(`[${v.name}] ${m.text()}`));
-  await page.goto(`${base}${v.query ? `?${v.query}` : ''}`);
+  await page.goto(`${base}${v.page ?? ''}${v.query ? `?${v.query}` : ''}`);
   await page.waitForFunction(() => !document.getElementById('loading'), null, { timeout: 120_000 });
   await page.waitForTimeout(v.wait ?? 2500);
   await page.screenshot({ path: `shots/${v.name}.png` });

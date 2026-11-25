@@ -8,6 +8,9 @@ export default defineConfig({
     chunkSizeWarningLimit: 1500,
     // The single-file build (npm run build:html) can't load extra chunks from disk, so it keeps
     // everything, including the online-play code, in one script.
-    ...(process.env.OW_SINGLE_FILE ? { rollupOptions: { output: { inlineDynamicImports: true } } } : {}),
+    // The rainy street walk (walk.html) is a second page; the single-file build leaves it out.
+    rollupOptions: process.env.OW_SINGLE_FILE
+      ? { output: { inlineDynamicImports: true } }
+      : { input: { main: 'index.html', walk: 'walk.html' } },
   },
 });

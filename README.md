@@ -59,11 +59,26 @@ src/
   game/session.ts       running and saving a game
   game/collision.ts     building footprint grid
   ui/                   title screen, scoreboard, action panel, battle pop-up, badges
+  walk/                 the rainy street walk (walk.html): WebGPU, see below
 tools/                 map pipeline and screenshot tool
 docs/map-research.md   the real geography
 docs/game-design.md    rules, territories, balance, online plan
 public/data/map.json   generated map data (commit it; it's what the game loads)
 ```
+
+## The rainy walk (walk.html)
+
+A first-person interlude: a night walk in heavy rain along about 730 m of the real Orchard Road
+(Wheelock Place to Mandarin Gallery), built from the same `map.json`. It is linked from the title screen.
+
+- Uses three.js's `WebGPURenderer` with TSL shaders. Where WebGPU is missing it falls back to WebGL 2 by itself.
+- Wet ground mirrors the street (a reflector, sharp in puddles and smeared elsewhere) and shows rings where drops land.
+  Facades get windows and shopfronts from a shader. Neon signs, lamps and trees are instanced. The rain streaks
+  are positioned on the GPU, and the rain and thunder are synthesized with Web Audio.
+- Phones get less rain, a smaller reflection and fewer lights, and the resolution drops if the frame rate does.
+- URL options: `?auto=1` (skip the title card), `?t=0.4` (start 40% along), `?yaw=30` (turn the head),
+  `?side=-1` (the other pavement), `?q=low|high`, `?webgl=1` (force WebGL 2), `?fixed=1` (no resolution scaling).
+- Its colours live in `src/walk/look.ts`; the route maths in `src/walk/path.ts` is tested in `tests/walk.test.ts`.
 
 ## Deploying
 

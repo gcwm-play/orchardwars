@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#07060d" />
+    <title>Rain on Orchard Road</title>
+    <meta name="description" content="A rainy night walk along Orchard Road, from the Orchard Wars map." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&display=swap" />
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="card" class="card" hidden>
+      <p class="kicker">Orchard Wars · interlude</p>
+      <h1>Rain on Orchard Road</h1>
+      <p>21:47. The monsoon has the street to itself. Walk the pavement east, past the malls, towards Somerset.</p>
+      <button id="start" type="button">Start walking</button>
+      <ul class="keys">
+        <li><b>Drag</b> to look around</li>
+        <li><b>W</b> / <b>Shift</b> or two fingers: hurry</li>
+        <li><b>S</b>: step back · <b>Space</b>: stop · <b>M</b>: sound</li>
+      </ul>
+    </div>
+    <div id="hud">
+      <div class="where"><b>ORCHARD ROAD</b><span>21:47 · heavy rain · <span class="backend"></span></span></div>
+      <div class="links"><button id="mute" type="button">Sound on</button><a href="./">Back to the game</a></div>
+      <p class="credit">Map data © OpenStreetMap contributors</p>
+    </div>
+    <div id="fade"></div>
+    <div id="loading">Starting…</div>
+    <script type="module" src="/src/walk/main.ts"></script>
+  </body>
+</html>
