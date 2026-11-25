@@ -2,14 +2,16 @@
 // Rendered with three.js's WebGPU renderer, which falls back to WebGL 2 where WebGPU is missing.
 //
 // URL options: ?auto=1 starts without the title card, ?t=0.4 starts 40% of the way along,
-// ?yaw=30 turns the head (degrees, + is left), ?side=-1 walks the other pavement,
+// ?yaw=30 turns the head (degrees, + is left), ?side=1 walks the north pavement (default: south,
+// past ION Orchard, Wisma Atria and Ngee Ann City), ?xmas=0|1 turns the festive lights off or on,
 // ?q=low|high picks the detail level, ?webgl=1 forces the WebGL 2 fallback,
-// ?fixed=1 turns off automatic resolution scaling (for screenshots).
+// ?fixed=1 turns off automatic resolution scaling and ?storm=0 the lightning (for screenshots).
 
 import * as THREE from 'three/webgpu';
 import { color, mix, pass, screenUV } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import { loadMap } from '../world/mapData.ts';
+import { loadWalkData } from './walkData.ts';
+import { KERB } from './ground.ts';
 import { walkRoute } from './path.ts';
 import { buildStreet } from './street.ts';
 import { makeRain } from './rain.ts';
@@ -25,8 +27,17 @@ const Q = low
   ? { rain: 5000, reflectionScale: 0.3, lights: 3, pixelRatio: Math.min(devicePixelRatio, 1.25), aa: false }
   : { rain: 16000, reflectionScale: 0.5, lights: 6, pixelRatio: Math.min(devicePixelRatio, 2), aa: true };
 
+/** ?storm=0 turns off the lightning (screenshots). */
+const storm = params.get('storm') !== '0';
 const WALK_SPEED = 1.5; // metres per second
-const EYE = 1.65;
+const EYE = KERB + 1.65; // standing on the raised pavement
+
+/** Orchard Road's Christmas light-up runs from mid-November into the new year. */
+function festive() {
+  if (params.has('xmas')) return params.get('xmas') !== '0';
+  const d = new Date();
+  return (d.getMonth() === 10 && d.getDate() >= 10) || d.getMonth() === 11 || (d.getMonth() === 0 && d.getDate() <= 6);
+}
 
 const loading = document.getElementById('loading')!;
 const say = (m: string) => (loading.textContent = m);
@@ -42,13 +53,14 @@ async function main() {
   renderer.toneMappingExposure = RAIN_LOOK.exposure;
 
   say('Loading Orchard Road…');
-  const map = await loadMap();
-  const side = params.get('side') === '-1' ? -1 : 1;
-  const route = walkRoute(map.roads, map.buildings, { street: 'Orchard Road', x0: -1110, x1: -470, side, pavement: 5 });
+  const data = await loadWalkData();
+  const side = params.get('side') === '1' ? 1 : -1;
+  const ground = data.parts.filter((p) => !p.canopy && p.b < 3);
+  const route = walkRoute(data.roads, ground, { street: 'Orchard Road', x0: -1110, x1: -470, side, pavement: 5 });
 
   const scene = new THREE.Scene();
   const [top, horizon] = RAIN_LOOK.sky;
-  const street = buildStreet(map, route, { reflectionScale: Q.reflectionScale, lights: Q.lights });
+  const street = buildStreet(data, route, { reflectionScale: Q.reflectionScale, low, xmas: festive() });
   const flash = street.flash;
   scene.backgroundNode = mix(color(horizon), color(top), screenUV.y.oneMinus().pow(0.7)).add(flash.mul(0.35));
   scene.fog = new THREE.FogExp2(RAIN_LOOK.fog, RAIN_LOOK.fogDensity);
@@ -184,10 +196,10 @@ async function main() {
     // Move the point lights to the nearest lamps.
     for (let i = 0; i < street.lamps.length; i++) lampDist[i] = street.lamps[i].distanceToSquared(camera.position);
     order.sort((a, c) => lampDist[a] - lampDist[c]);
-    lights.forEach((l, i) => l.position.copy(street.lamps[order[i]]).setY(8.3));
+    lights.forEach((l, i) => l.position.copy(street.lamps[order[i]]).setY(KERB + 8.3));
 
     // Lightning: two or three quick flashes, thunder a moment later.
-    if (started && now > nextStrike) {
+    if (started && storm && now > nextStrike) {
       strikeAt = now;
       strikePattern = [0, 90 + Math.random() * 60, 260 + Math.random() * 200];
       const distance = Math.random();
@@ -202,6 +214,7 @@ async function main() {
     flash.value = f;
     hemi.intensity = RAIN_LOOK.hemi.intensity + f * 3;
 
+    street.update(dt, now / 1000);
     post.render();
 
     // Keep the frame rate up on slow devices by lowering the resolution in small steps.

@@ -1,7 +1,17 @@
 // Street geometry for the rainy walk: picks one real street out of the map data and works out the
 // line a walker follows along its pavement. Pure functions (no DOM, no three.js) so they are testable.
 
-import type { Building, Road } from '../world/mapData.ts';
+/** Any road with a name, a kind (OSM-derived, optional), a width and a polyline. */
+export interface RoadLike {
+  n?: string;
+  k?: string;
+  w: number;
+  p: number[];
+}
+/** Anything with a footprint ring. */
+export interface Footprint {
+  p: number[];
+}
 import { pointInRing } from '../world/polygon.ts';
 
 export type Pt = [x: number, z: number];
@@ -24,7 +34,7 @@ export function lineLength(line: Pt[]) {
  * Joins the pieces of a named road (OSM splits streets into many ways) into its longest continuous
  * chain, running west to east. Footpaths with the same name are ignored.
  */
-export function streetLine(roads: Road[], name: string, tolerance = 1.5): { line: Pt[]; width: number } {
+export function streetLine(roads: RoadLike[], name: string, tolerance = 1.5): { line: Pt[]; width: number } {
   const parts = roads.filter((r) => r.n === name && r.k !== 'foot' && r.k !== 'pedestrian');
   const segs = parts.map((r) => toPts(r.p));
   const used = new Array(segs.length).fill(false);
@@ -150,7 +160,7 @@ export function distToLine(x: number, z: number, line: Pt[]): number {
 }
 
 /** Bounding-circle test then exact: is the building within `r` metres of the line? */
-export function buildingNear(b: Building, line: Pt[], r: number): boolean {
+export function buildingNear(b: Footprint, line: Pt[], r: number): boolean {
   for (let i = 0; i < b.p.length; i += 2) if (distToLine(b.p[i], b.p[i + 1], line) < r) return true;
   return false;
 }
@@ -170,8 +180,8 @@ export interface WalkRoute {
  * Where a building's footprint reaches over the pavement the walker keeps closer to the kerb.
  */
 export function walkRoute(
-  roads: Road[],
-  buildings: Building[],
+  roads: RoadLike[],
+  buildings: Footprint[],
   opts: { street: string; x0: number; x1: number; side: 1 | -1; pavement: number },
 ): WalkRoute {
   const { line, width } = streetLine(roads, opts.street);

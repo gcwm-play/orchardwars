@@ -38,6 +38,8 @@ Rules and balance: docs/game-design.md.
   Names section of `docs/map-research.md` before any commercial release).
 - Keep the OpenStreetMap credit visible in the game.
 - `walk.html` / `src/walk/` is a separate first-person rainy walk on Orchard Road (three.js WebGPU renderer + TSL,
-  WebGL 2 fallback). Its look is in `src/walk/look.ts`. `npm run shot` includes `walk*` views; headless Chromium
-  has no WebGPU, so those show the WebGL 2 path.
+  WebGL 2 fallback). Its look is in `src/walk/look.ts`; its data is `public/data/walk.json` (generated but committed:
+  `npm run map:fetch && npm run walk:fetch && npm run walk:build`), with real OSM building parts, colours and street
+  furniture, so prefer fixing the data pipeline over hand-placing things. `npm run shot` includes `walk*` views (with
+  `storm=0` so lightning doesn't flash a frame); headless Chromium has no WebGPU, so those show the WebGL 2 path.
 - Game content (gangs, regions, territories) lives in `src/game/data.ts`, not in rendering code.

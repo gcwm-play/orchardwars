@@ -11,6 +11,8 @@
     "test": "vitest run",
     "map:fetch": "node tools/fetch-osm.ts",
     "map:build": "node tools/build-map.ts",
+    "walk:fetch": "node tools/fetch-walk.ts",
+    "walk:build": "node tools/build-walk.ts",
     "shot": "node tools/screenshot.ts",
     "sim": "node tools/simulate.ts",
     "build:html": "node tools/build-html.ts"

@@ -69,16 +69,26 @@ public/data/map.json   generated map data (commit it; it's what the game loads)
 ## The rainy walk (walk.html)
 
 A first-person interlude: a night walk in heavy rain along about 730 m of the real Orchard Road
-(Wheelock Place to Mandarin Gallery), built from the same `map.json`. It is linked from the title screen.
+(from the Paterson Road end past ION Orchard, Wisma Atria and Ngee Ann City towards Somerset). It is linked from
+the title screen.
 
-- Uses three.js's `WebGPURenderer` with TSL shaders. Where WebGPU is missing it falls back to WebGL 2 by itself.
-- Wet ground mirrors the street (a reflector, sharp in puddles and smeared elsewhere) and shows rings where drops land.
-  Facades get windows and shopfronts from a shader. Neon signs, lamps and trees are instanced. The rain streaks
-  are positioned on the GPU, and the rain and thunder are synthesized with Web Audio.
-- Phones get less rain, a smaller reflection and fewer lights, and the resolution drops if the frame rate does.
-- URL options: `?auto=1` (skip the title card), `?t=0.4` (start 40% along), `?yaw=30` (turn the head),
-  `?side=-1` (the other pavement), `?q=low|high`, `?webgl=1` (force WebGL 2), `?fixed=1` (no resolution scaling).
-- Its colours live in `src/walk/look.ts`; the route maths in `src/walk/path.ts` is tested in `tests/walk.test.ts`.
+- **Built from OpenStreetMap's street-level data** (`public/data/walk.json`, made by `npm run walk:fetch && npm run walk:build`
+  after `npm run map:fetch`): 3D building parts with their mapped heights, colours, materials and roof shapes
+  (Ngee Ann City's red-brown granite towers, the Marriott's green pagoda roof, the 218 m Orchard Residences above ION),
+  building names for the mall signs, Orchard Road's real lane count and full-day bus lane, signalled crossings, the
+  Orchard Station bus stops (named), MRT entrances and covered walkways.
+- **Look:** facade styles chosen from the mapped material (punched windows, glass curtain wall, mall podium), lit rooms and
+  shops drawn with interior mapping (a fake room behind the glass), weathering streaks, ION's media wall, neon and LED
+  screens, raised kerbs and gutters, tiled pavements, puddles in wheel ruts and gutters that mirror the street,
+  rain trees with fairy lights during the Christmas light-up season, and traffic that stops at red lights.
+- Uses three.js's `WebGPURenderer` with TSL shaders, and falls back to WebGL 2 by itself where WebGPU is missing.
+  Phones get a lighter version (less rain, smaller reflection, flat windows, fewer cars), and the resolution drops if
+  the frame rate does.
+- URL options: `?auto=1` (skip the title card), `?t=0.4` (start 40% along), `?yaw=30` / `?pitch=10` (turn the head),
+  `?side=1` (the north pavement), `?xmas=0|1`, `?storm=0` (no lightning), `?q=low|high`, `?webgl=1` (force WebGL 2),
+  `?fixed=1` (no resolution scaling).
+- Code in `src/walk/`: `path.ts` (route), `ground.ts`, `buildings.ts`, `signs.ts`, `props.ts`, `traffic.ts`, `rain.ts`,
+  `sound.ts`; colours in `look.ts`. Tests in `tests/walk.test.ts`.
 
 ## Deploying
 

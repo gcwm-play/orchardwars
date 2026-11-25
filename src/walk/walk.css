@@ -48,3 +48,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 
 #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.45s; }
 #fade.on { opacity: 1; }
+
+@media (max-width: 480px) {
+  #hud .where { top: 58px; }
+  #hud .where b { letter-spacing: 0.15em; font-size: 13px; }
+}

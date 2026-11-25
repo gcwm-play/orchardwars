@@ -23,9 +23,10 @@ const VIEWS: { name: string; query: string; page?: string; width?: number; heigh
   { name: 'phone', query: 'gang=thorn&seed=7', width: 390, height: 844, scale: 2 },
   { name: 'phone-briefing', query: 'gang=tide&brief=1&seed=7', width: 390, height: 844, scale: 2 },
   // The rainy street walk (walk.html). Headless Chromium has no WebGPU, so these show the WebGL 2 fallback.
-  { name: 'walk', page: 'walk.html', query: 'auto=1&fixed=1&t=0.3' },
-  { name: 'walk-across', page: 'walk.html', query: 'auto=1&fixed=1&t=0.55&yaw=-55' },
-  { name: 'walk-phone', page: 'walk.html', query: 'fixed=1&t=0.1', width: 390, height: 844, scale: 2 },
+  { name: 'walk', page: 'walk.html', query: 'auto=1&fixed=1&storm=0&t=0.6&yaw=5' },
+  { name: 'walk-ion', page: 'walk.html', query: 'auto=1&fixed=1&storm=0&t=0.16&yaw=-80&pitch=12' },
+  { name: 'walk-wisma', page: 'walk.html', query: 'auto=1&fixed=1&storm=0&side=1&t=0.45&yaw=-70' },
+  { name: 'walk-phone', page: 'walk.html', query: 'auto=1&fixed=1&storm=0&q=low&t=0.3&yaw=-40', width: 390, height: 844, scale: 2 },
 ];
 
 const argUrl = process.argv.indexOf('--url');
